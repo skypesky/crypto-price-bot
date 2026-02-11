@@ -15,8 +15,8 @@ const CONFIG = {
     { id: 'ethereum', symbol: 'ETH', name: '以太坊' },
     { id: 'tether', symbol: 'USDT', name: '泰达币' },
     { id: 'solana', symbol: 'SOL', name: '索拉纳' },
-    { id: 'arcblock', symbol: 'ABT', name: 'ArcBlock' },
-    // { id: 'binancecoin', symbol: 'BNB', name: '币安币' },
+    { id: 'arcblock', symbol: 'ABT', name: '区块基石' },
+    { id: 'binancecoin', symbol: 'BNB', name: '币安币' },
     // { id: 'ripple', symbol: 'XRP', name: '瑞波币' },
     // { id: 'cardano', symbol: 'ADA', name: '艾达币' },
     // { id: 'dogecoin', symbol: 'DOGE', name: '狗狗币' },
@@ -61,9 +61,12 @@ async function getCryptoPrices() {
     CONFIG.CRYPTO_LIST.forEach(item => {
       const price = data[item.id];
       if (price) {
+        // 使用用户要求的链接格式：https://www.coingecko.com/zh/数字货币/币种名称
+        const trendUrl = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(item.name)}`;
         msg += `🔹 *${item.name}* (${item.symbol}):\n`;
         msg += `   💰 人民币：\`¥${price.cny.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}\`\n`;
-        msg += `   💵 美元：\`$${price.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })}\`\n\n`;
+        msg += `   💵 美元：\`$${price.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })}\`\n`;
+        msg += `   📈 [查看趋势图](${trendUrl})\n\n`;
       } else {
         msg += `⚠️ 无法获取 ${item.name} 的价格\n\n`;
       }
