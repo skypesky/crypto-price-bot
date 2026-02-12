@@ -2,7 +2,7 @@ name: Hourly Crypto Price Report
 
 on:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '58 * * * *'
   workflow_dispatch:
 
 jobs:
