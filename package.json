@@ -4,8 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node index.js",
-    "start": "pm2 start index.js --name crypto-price-bot"
+    "dev": "bun index.js",
+    "start": "pm2 start index.js --interpreter $(which bun) --name crypto-price-bot"
   },
   "keywords": [],
   "author": "",

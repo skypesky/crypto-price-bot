@@ -12,7 +12,7 @@
 
 ## 🛠️ 技术栈
 
-- **Node.js**: 运行环境
+- **Bun**: 运行环境及包管理
 - **Axios**: 处理 API 请求
 - **node-telegram-bot-api**: Telegram 机器人交互
 - **node-schedule**: 定时任务管理
@@ -25,7 +25,7 @@
 ```bash
 git clone <repository-url>
 cd crypto-price-bot
-npm install
+bun install
 ```
 
 ### 2. 配置环境变量
@@ -41,12 +41,12 @@ TG_CHAT_ID=你的_TELEGRAM_聊天_ID
 
 **开发模式：**
 ```bash
-npm run dev
+bun run dev
 ```
 
 **生产模式 (使用 PM2)：**
 ```bash
-npm start
+bun start
 ```
 
 ### 4. GitHub Actions 定时任务 (推荐)
@@ -59,7 +59,7 @@ npm start
 3. 添加以下两个 Repository secrets：
    - `TG_BOT_TOKEN`: 你的 Telegram Bot Token。
    - `TG_CHAT_ID`: 你的 Telegram Chat ID。
-4. 工作流会自动在每小时整点运行。你也可以在 **Actions** 标签页手动触发 **Hourly Crypto Price Report**。
+4. 工作流会使用 Bun 环境在每小时整点运行。你也可以在 **Actions** 标签页手动触发 **Hourly Crypto Price Report**。
 
 ## ⚙️ 自定义配置
 
