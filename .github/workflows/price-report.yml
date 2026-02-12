@@ -1,8 +1,11 @@
 name: Hourly Crypto Price Report
 
 on:
+  push:
+    branches:
+      - main
   schedule:
-    - cron: '20 */1 * * *' # 协调世界时 (UTC) 每小时整点执行一次
+    - cron: '30 * * * *' # 协调世界时 (UTC) 每小时整点执行一次
   workflow_dispatch: # 允许在 GitHub 界面手动点击运行
 
 jobs:
