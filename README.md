@@ -49,6 +49,18 @@ npm run dev
 npm start
 ```
 
+### 4. GitHub Actions 定时任务 (推荐)
+
+项目已配置 GitHub Actions，可实现每小时自动发送报告。
+
+**设置步骤：**
+1. 将项目推送到你的 GitHub 仓库。
+2. 在仓库设置中找到 **Settings** -> **Secrets and variables** -> **Actions**。
+3. 添加以下两个 Repository secrets：
+   - `TG_BOT_TOKEN`: 你的 Telegram Bot Token。
+   - `TG_CHAT_ID`: 你的 Telegram Chat ID。
+4. 工作流会自动在每小时整点运行。你也可以在 **Actions** 标签页手动触发 **Hourly Crypto Price Report**。
+
 ## ⚙️ 自定义配置
 
 你可以在 [index.js](file:///Users/skypesky/workSpaces/javascript/github/crypto-price-bot/index.js) 的 `CONFIG` 对象中进行如下调整：

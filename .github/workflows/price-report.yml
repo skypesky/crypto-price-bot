@@ -1,0 +1,29 @@
+name: Hourly Crypto Price Report
+
+on:
+  schedule:
+    - cron: '0 * * * *' # 协调世界时 (UTC) 每小时整点执行一次
+  workflow_dispatch: # 允许在 GitHub 界面手动点击运行
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run price report
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          GITHUB_ACTIONS: 'true'
+        run: npm run dev

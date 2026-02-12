@@ -109,16 +109,27 @@ async function mainTask() {
   await sendToTG(priceMsg);
 }
 
-// 1. 立即执行一次（测试用）
-// 注意：如果你不想在启动时立即发送，可以注释掉下面这一行
-mainTask();
-
-// 2. 设置定时任务，每天自动执行
-schedule.scheduleJob(CONFIG.SCHEDULE_RULE, () => {
-  console.log('定时任务触发');
+// 1. 如果是 GitHub Actions 环境，执行一次就退出
+if (process.env.GITHUB_ACTIONS === 'true') {
+  console.log('检测到 GitHub Actions 环境，执行单次任务...');
+  mainTask().then(() => {
+    console.log('✅ 任务执行完毕，正在退出...');
+    // 给一点时间让异步日志输出完毕
+    setTimeout(() => process.exit(0), 5000);
+  }).catch(err => {
+    console.error('❌ 任务执行失败:', err);
+    process.exit(1);
+  });
+} else {
+  // 2. 本地/服务器模式：立即执行一次并开启定时任务
   mainTask();
-});
 
-console.log(`🚀 机器人已启动！`);
-console.log(`📅 定时规则: ${CONFIG.SCHEDULE_RULE} (每天 ${CONFIG.SCHEDULE_RULE.split(' ')[2]} 点)`);
-console.log(`📝 监控币种: ${CONFIG.CRYPTO_LIST.map(c => c.symbol).join(', ')}`);
+  schedule.scheduleJob(CONFIG.SCHEDULE_RULE, () => {
+    console.log('定时任务触发');
+    mainTask();
+  });
+
+  console.log(`🚀 机器人已启动！`);
+  console.log(`📅 定时规则: ${CONFIG.SCHEDULE_RULE} (每天 ${CONFIG.SCHEDULE_RULE.split(' ')[2]} 点)`);
+  console.log(`📝 监控币种: ${CONFIG.CRYPTO_LIST.map(c => c.symbol).join(', ')}`);
+}
