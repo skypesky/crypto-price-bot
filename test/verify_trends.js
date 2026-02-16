@@ -19,14 +19,17 @@ async function verifyLinks() {
   const results = [];
   
   for (const item of CRYPTO_LIST) {
-    const trendUrl = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(item.id)}`;
+    const gateSlug = `${item.id}-${item.symbol.toLowerCase()}`;
+    const gateUrl = `https://www.gate.com/zh/price/${gateSlug}`;
+    const cgUrl = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(item.id)}`;
     
-    // 手动验证逻辑：打印出 URL，让开发者确认格式是否符合 CoinGecko 规范
-    console.log(`🔗 [${item.symbol}] 趋势图链接: ${trendUrl}`);
+    // 手动验证逻辑：打印出 URL，让开发者确认格式是否符合 gate.io / CoinGecko 规范
+    console.log(`🔗 [${item.symbol}] gate.io: ${gateUrl}`);
+    console.log(`🔗 [${item.symbol}] CoinGecko: ${cgUrl}`);
     results.push({ symbol: item.symbol, ok: true });
   }
   
-  console.log('\n✅ 所有币种的趋势图链接已生成并指向 CoinGecko 官方 ID 路径。');
+  console.log('\n✅ 所有币种的趋势图链接已生成（gate.io + CoinGecko）。');
 }
 
 verifyLinks();
