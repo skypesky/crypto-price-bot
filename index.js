@@ -16,10 +16,10 @@ const CONFIG = {
     { id: 'tether', symbol: 'USDT', name: '泰达币' },
     { id: 'solana', symbol: 'SOL', name: '索拉纳' },
     { id: 'arcblock', symbol: 'ABT', name: '区块基石' },
-    { id: 'binancecoin', symbol: 'BNB', name: '币安币' },
+    { id: 'binancecoin', symbol: 'BNB', name: '币安币', gateSlug: 'bnb-bnb' },
     { id: 'icon', symbol: 'ICX', name: 'ICON' },
-    { id: 'filecoin', symbol: 'FIL', name: '文件币' },
-    { id: 'cosmos', symbol: 'ATOM', name: '阿童木' },
+    { id: 'filecoin', symbol: 'FIL', name: '文件币', gateSlug: 'filecoin(ipfs)-fil' },
+    { id: 'cosmos', symbol: 'ATOM', name: '阿童木', gateSlug: 'cosmos-hub-atom' },
     { id: 'optimism', symbol: 'OP', name: 'Optimism' },
   ],
   // 定时规则：每天9点0分0秒执行（格式：秒 分 时 日 月 周）
@@ -59,7 +59,7 @@ async function getCryptoPrices() {
     CONFIG.CRYPTO_LIST.forEach(item => {
       const price = data[item.id];
       if (price) {
-        const gateSlug = `${item.id}-${item.symbol.toLowerCase()}`;
+        const gateSlug = item.gateSlug || `${item.id}-${item.symbol.toLowerCase()}`;
         const gateUrl = `https://www.gate.com/zh/price/${gateSlug}`;
         const cgUrl = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(item.id)}`;
         msg += `🔹 *${item.name}* (${item.symbol}):\n`;
