@@ -7,6 +7,7 @@ const schedule = require('node-schedule');
 const CONFIG = {
   TG_BOT_TOKEN: process.env.TG_BOT_TOKEN,
   TG_CHAT_ID: process.env.TG_CHAT_ID,
+  FEISHU_WEBHOOK_URL: process.env.FEISHU_WEBHOOK_URL,
   // 用户指定的 User-Agent
   USER_AGENT: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
   // 要查询的币种（CoinGecko的币种ID，可在官网查）
@@ -100,6 +101,32 @@ async function sendToTG(message) {
   }
 }
 
+function normalizeMessageForTextChannel(message) {
+  return String(message)
+    .replace(/\r\n/g, '\n')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1: $2')
+    .replace(/[*_`]/g, '');
+}
+
+async function sendToFeishu(message) {
+  if (!CONFIG.FEISHU_WEBHOOK_URL) return;
+  try {
+    const text = normalizeMessageForTextChannel(message);
+    await axios.post(
+      CONFIG.FEISHU_WEBHOOK_URL,
+      { msg_type: 'text', content: { text } },
+      { headers: { 'Content-Type': 'application/json', 'User-Agent': CONFIG.USER_AGENT } }
+    );
+    console.log('✅ 飞书消息发送成功');
+  } catch (err) {
+    console.error('❌ 飞书发送失败：', err.message);
+    if (err.response) {
+      console.error(`状态码: ${err.response.status}`);
+      console.error('返回数据:', err.response.data);
+    }
+  }
+}
+
 /**
  * 主任务：查价格 + 发TG
  */
@@ -107,6 +134,7 @@ async function mainTask() {
   console.log(`[${new Date().toLocaleString()}] 开始执行价格查询任务...`);
   const priceMsg = await getCryptoPrices();
   await sendToTG(priceMsg);
+  await sendToFeishu(priceMsg);
 }
 
 // 1. 如果是 GitHub Actions 环境，执行一次就退出
