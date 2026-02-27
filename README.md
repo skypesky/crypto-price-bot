@@ -38,6 +38,7 @@ bun install
 TG_BOT_TOKEN="你的_TELEGRAM_机器人_TOKEN"
 TG_CHAT_ID=你的_TELEGRAM_聊天_ID
 FEISHU_WEBHOOK_URL=你的_飞书_ webhook_ URL
+TIMEZONE="Asia/Shanghai"  # 时区设置,默认为北京时区
 ```
 
 ### 3. 运行机器人

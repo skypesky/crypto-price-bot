@@ -8,6 +8,7 @@ const CONFIG = {
   TG_BOT_TOKEN: process.env.TG_BOT_TOKEN,
   TG_CHAT_ID: process.env.TG_CHAT_ID,
   FEISHU_WEBHOOK_URL: process.env.FEISHU_WEBHOOK_URL,
+  TIMEZONE: process.env.TIMEZONE || 'Asia/Shanghai',
   // 用户指定的 User-Agent
   USER_AGENT: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
   // 要查询的币种（CoinGecko的币种ID，可在官网查）
@@ -73,7 +74,7 @@ async function getCryptoPrices() {
       }
     });
     
-    msg += `⏰ 更新时间: ${new Date().toLocaleString('zh-CN')}`;
+    msg += `⏰ 更新时间: ${new Date().toLocaleString('zh-CN', { timeZone: CONFIG.TIMEZONE })}`;
     return msg;
   } catch (err) {
     console.error('获取价格失败：', err.message);
@@ -131,7 +132,7 @@ async function sendToFeishu(message) {
  * 主任务：查价格 + 发TG
  */
 async function mainTask() {
-  console.log(`[${new Date().toLocaleString()}] 开始执行价格查询任务...`);
+  console.log(`[${new Date().toLocaleString('zh-CN', { timeZone: CONFIG.TIMEZONE })}] 开始执行价格查询任务...`);
   const priceMsg = await getCryptoPrices();
   await sendToTG(priceMsg);
   await sendToFeishu(priceMsg);
