@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "dev": "bun index.js",
     "start": "pm2 start index.js --interpreter $(which bun) --name crypto-price-bot"
   },
@@ -17,5 +17,8 @@
     "dotenv": "^17.2.4",
     "node-schedule": "^2.1.1",
     "node-telegram-bot-api": "^0.67.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.6"
   }
 }
