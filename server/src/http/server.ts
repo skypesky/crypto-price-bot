@@ -14,21 +14,19 @@ const log = createLogger({ isTTY: false }).child('http').child('server');
 
 export type AppMiddleware = (ctx: RouteContext, next: () => Promise<void>) => Promise<void>;
 
-export interface ServerOptions {
-  port: number;
-  host?: string;
-  staticDir?: string;
+export interface AppOptions {
   resolveSession: (token: string) => Promise<AuthedUser | null>;
+  staticDir?: string;
 }
 
-export function buildApp(opts: { resolveSession: (token: string) => Promise<AuthedUser | null>; staticDir?: string }): {
+export function buildApp(opts: AppOptions): {
   router: Router;
   middlewares: AppMiddleware[];
 } {
   const router = new Router();
   const middlewares: AppMiddleware[] = [
-    errorMiddleware,
     loggerMiddleware,
+    errorMiddleware,
     jsonBodyMiddleware,
   ];
   if (opts.staticDir && existsSync(opts.staticDir)) {
@@ -37,8 +35,12 @@ export function buildApp(opts: { resolveSession: (token: string) => Promise<Auth
   return { router, middlewares };
 }
 
-export async function startServer(opts: ServerOptions): Promise<{ server: Server; close: () => Promise<void> }> {
-  const app = buildApp({ resolveSession: opts.resolveSession, staticDir: opts.staticDir });
+export interface ListenOptions extends AppOptions {
+  port: number;
+  host?: string;
+}
+
+export async function listen(app: { router: Router; middlewares: AppMiddleware[] }, opts: ListenOptions): Promise<{ server: Server; close: () => Promise<void> }> {
   const server = nodeCreateServer((req, res) => {
     handleRequest(req, res, app.router, app.middlewares).catch((err) => {
       log.error('unhandled in handleRequest', err);

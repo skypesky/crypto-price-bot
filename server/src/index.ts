@@ -2,17 +2,17 @@
  * 进程入口：loadConfig → init db → 注册路由 → http listen → start scheduler。
  */
 
-import 'dotenv/config'; // 可选：如果装了 dotenv
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { initDb, closeDb, pingDb } from './core/db.js';
 import { initDefaults as initSettingDefaults } from './core/models/setting.js';
 import { initDefaultCoins } from './core/models/coin.js';
 import { loadConfig, getConfig } from './core/config.js';
 import { initAuth } from './util/auth.js';
 import { createLogger } from './util/logger.js';
-import { buildApp, startServer } from './http/server.js';
+import { buildApp, listen } from './http/server.js';
 import { authMiddleware } from './http/middleware.js';
 import { registerStatus } from './api/status.js';
 import { registerAuth, resolveAuthedUser } from './api/auth.js';
@@ -70,7 +70,7 @@ async function bootstrap(): Promise<void> {
 
   // 5. 初始化 auth secret（从 env 拿；没有则用静态 dbPath 的 hash）
   const authSecret = process.env['AUTH_SECRET']
-    || require('node:crypto').createHash('sha256').update(dbPath + ':cpb').digest('hex');
+    || createHash('sha256').update(dbPath + ':cpb').digest('hex');
   initAuth(authSecret);
 
   // 6. 装配 HTTP
@@ -91,7 +91,7 @@ async function bootstrap(): Promise<void> {
   registerLogs(app.router);
 
   // 7. 启动 server
-  const { server, close: closeHttp } = await startServer({
+  const { server, close: closeHttp } = await listen(app, {
     port,
     host: process.env['HOST'] ?? '0.0.0.0',
     resolveSession: resolveAuthedUser,
@@ -142,6 +142,6 @@ function shutdown(server: import('node:http').Server, closeHttp: () => Promise<v
 }
 
 bootstrap().catch((err) => {
-  log.error('bootstrap failed', err);
+  console.error('bootstrap failed:', err);
   process.exit(1);
 });

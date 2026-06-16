@@ -1,6 +1,6 @@
 import { Router, type Handler } from '../http/router.js';
 import { sendOk } from '../http/response.js';
-import { pingDb } from '../core/db.js';
+import { pingDb, getDb } from '../core/db.js';
 import { getConfig } from '../core/config.js';
 import { nextRunAt } from '../core/scheduler.js';
 import { lastReport } from '../core/models/report.js';
@@ -30,8 +30,6 @@ export function registerStatus(r: Router): void {
 
 function getDbVersion(): string | null {
   try {
-    // dynamic to avoid ts circular
-    const { getDb } = require('../core/db.js');
     const row = getDb().prepare('SELECT sqlite_version() as v').get() as { v: string };
     return row.v;
   } catch {

@@ -61,15 +61,22 @@ export const jsonBodyMiddleware: Middleware = async (ctx, next) => {
 
 /**
  * 鉴权中间件：从 cpb_session cookie 解析 session token，校验后挂载 user。
+ * 公开路由白名单：/api/status, /api/auth/login
  */
 export interface AuthedUser {
   id: number;
   username: string;
 }
 
+const PUBLIC_PATHS = new Set(['/api/status', '/api/auth/login']);
+
 export const authMiddleware = (
   resolveSession: (token: string) => Promise<AuthedUser | null>,
 ): Middleware => async (ctx, next) => {
+  if (PUBLIC_PATHS.has(ctx.pathname)) {
+    await next();
+    return;
+  }
   const cookies = parseCookies(ctx.req);
   const token = cookies['cpb_session'];
   if (!token) throw new UnauthorizedError('missing session cookie');
@@ -85,6 +92,11 @@ export const authMiddleware = (
  */
 export const staticMiddleware = (rootDir: string, spaIndex = true): Middleware => async (ctx, next) => {
   if (ctx.req.method !== 'GET' && ctx.req.method !== 'HEAD') {
+    await next();
+    return;
+  }
+  // /api/* 全部交给路由层
+  if (ctx.pathname.startsWith('/api/') || ctx.pathname === '/api') {
     await next();
     return;
   }
