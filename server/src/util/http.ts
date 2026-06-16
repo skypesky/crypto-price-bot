@@ -104,10 +104,10 @@ async function doFetch<T>(url: string, init: RequestInit, opts: HttpOptions): Pr
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT);
   try {
     const res = await undiciFetch(url, {
-      ...init,
+      ...(init as Record<string, unknown>),
       signal: controller.signal,
       dispatcher: getAgent(),
-    });
+    } as Parameters<typeof undiciFetch>[1]);
     const text = await res.text();
     let data: unknown = text;
     const ct = res.headers.get('content-type') ?? '';

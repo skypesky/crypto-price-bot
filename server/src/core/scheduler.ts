@@ -1,6 +1,6 @@
 import { Cron } from 'croner';
-import { getConfig, reloadConfig, onConfigChange } from '../config.js';
-import { createLogger } from '../../util/logger.js';
+import { getConfig, onConfigChange } from './config.js';
+import { createLogger } from '../util/logger.js';
 import { runTask } from './task.js';
 
 const log = createLogger({ isTTY: false }).child('scheduler');
