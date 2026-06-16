@@ -1,0 +1,20 @@
+services:
+  crypto-price-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: crypto-price-bot:latest
+    container_name: crypto-price-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${PORT:-8787}:8787"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8787/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

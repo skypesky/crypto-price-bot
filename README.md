@@ -1,79 +1,125 @@
 # Crypto Price Bot 📊
 
-一个基于 Node.js 的加密货币价格监控机器人，定时通过 Telegram 和飞书发送实时价格报告。
+一个基于 Node.js + Vite/React + SQLite 的加密货币价格监控机器人，**内置 Web Dashboard** 管理所有配置，定时通过 Telegram 和飞书发送实时价格报告。
 
 ## 🚀 功能特性
 
-- **多币种监控**：默认支持 BTC, ETH, USDT, SOL, ABT, BNB 等。
-- **双语计价**：同时提供人民币 (CNY) 和美元 (USD) 价格。
-- **定时推送**：通过 `node-schedule` 实现每日定时发送报告（默认每天 9:00 AM）。
-- **多平台推送**：支持同时向 Telegram 和飞书发送报告。
-- **趋势链接**：点击报告中的链接可直接跳转至 CoinGecko 查看详细趋势图。
-- **PM2 支持**：内置 PM2 启动脚本，方便生产环境持久化运行。
+- **Web Dashboard**：账密登录，所有配置（币种、推送通道、调度规则、汇率、DoH 等）可视化编辑。
+- **多币种监控**：默认 BTC / ETH / USDT / SOL / ABT / BNB / ICX / FIL / ATOM / OP / GT，可在页面增删改、启停、拖拽排序。
+- **技术指标**：MA7 / MA30 / MA90 / MA180 / MA365 + 7d / 30d / 90d / 180d / 1y 趋势。
+- **双语计价**：美元 + 人民币。
+- **定时推送**：cron 6 段（含秒）调度，支持时区。
+- **多平台推送**：Telegram + 飞书 Incoming Webhook，任一失败不影响另一通道。
+- **历史报表**：最近推送的快照保留在 SQLite，可重发到任意通道。
+- **多阶段 Docker**：`node:22-alpine` 镜像，< 200MB，非 root 运行。
 
 ## 🛠️ 技术栈
 
-- **Bun**: 运行环境及包管理
-- **Axios**: 处理 API 请求
-- **node-telegram-bot-api**: Telegram 机器人交互
-- **node-fetch**: 飞书 Webhook 请求
-- **node-schedule**: 定时任务管理
-- **CoinGecko API**: 免费且强大的加密货币数据源
+**后端：** Node 22 LTS · TypeScript 5 · better-sqlite3 · zod · bcryptjs · 内置 `http` 模块（手写路由）
+**前端：** Vite 5 · React 18 · TypeScript 5 · Ant Design 5 · @dnd-kit
+**工具链：** vitest · tini（Docker PID 1）
 
 ## 📋 快速开始
 
-### 1. 克隆项目并安装依赖
+### 1. 克隆 & 安装
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/skypesky/crypto-price-bot
 cd crypto-price-bot
-bun install
+make install
 ```
 
 ### 2. 配置环境变量
 
-在根目录下创建 `.env` 文件，并填入你的配置信息：
-
-```env
-TG_BOT_TOKEN="你的_TELEGRAM_机器人_TOKEN"
-TG_CHAT_ID=你的_TELEGRAM_聊天_ID
-FEISHU_WEBHOOK_URL=你的_飞书_ webhook_ URL
-TIMEZONE="Asia/Shanghai"  # 时区设置,默认为北京时区
-```
-
-### 3. 运行机器人
-
-**开发模式：**
 ```bash
-bun run dev
+cp .env.example .env
+# 编辑 .env：至少修改 INIT_PASSWORD（首次启动会创建管理员账密）
 ```
 
-**生产模式 (使用 PM2)：**
+### 3. 运行
+
+#### 方式 A：Docker（推荐部署 / 服务器）
+
 ```bash
-bun start
+make build.docker      # 构建镜像
+make dev.docker        # 启动容器（后台）
+make logs.docker       # 跟踪日志
 ```
 
-### 4. GitHub Actions 定时任务 (推荐)
+容器内 `TZ=Asia/Shanghai`，通过 `volumes: ./data:/app/data` 持久化 SQLite。
 
-项目已配置 GitHub Actions，可实现每小时自动发送报告。
+#### 方式 B：Native（开发推荐）
 
-**设置步骤：**
-1. 将项目推送到你的 GitHub 仓库。
-2. 在仓库设置中找到 **Settings** -> **Secrets and variables** -> **Actions**。
-3. 添加以下三个 Repository secrets：
-   - `TG_BOT_TOKEN`: 你的 Telegram Bot Token。
-   - `TG_CHAT_ID`: 你的 Telegram Chat ID。
-   - `FEISHU_WEBHOOK_URL`: 你的飞书机器人 Webhook URL。
-4. 工作流会使用 Bun 环境在每小时整点运行。你也可以在 **Actions** 标签页手动触发 **Hourly Crypto Price Report**。
+```bash
+make dev               # 并行启动：server (tsx watch :8787) + web (vite :5173)
+```
 
-## ⚙️ 自定义配置
+打开 http://localhost:5173，用 `.env` 中配置的 `INIT_USERNAME` / `INIT_PASSWORD` 登录。
 
-你可以在 [index.js](file:///Users/skypesky/workSpaces/javascript/github/crypto-price-bot/index.js) 的 `CONFIG` 对象中进行如下调整：
+#### 方式 C：生产前台
 
-- **CRYPTO_LIST**: 修改或增加你想要监控的币种 ID（需符合 CoinGecko ID 规范）。
-- **SCHEDULE_RULE**: 修改定时规则（Cron 表达式格式）。
-- **USER_AGENT**: 自定义请求头。
+```bash
+make build             # 编译 server + web
+make start             # 前台运行编译后产物
+```
+
+### 4. GitHub Actions 定时
+
+`.github/workflows/price-report.yml` 已配置为 Node 22 + 每 6 小时运行一次。需要在仓库 Settings → Secrets 添加：
+
+- `INIT_USERNAME`
+- `INIT_PASSWORD`
+- `TG_BOT_TOKEN`
+- `TG_CHAT_ID`
+- `FEISHU_WEBHOOK_URL`
+
+## ⚙️ Web Dashboard
+
+| 路径 | 说明 |
+|---|---|
+| `/login` | 账密登录 |
+| `/dashboard` | 总览（监控币种数 / 最近推送 / 下次推送 / 立即执行） |
+| `/coins` | 币种 CRUD + 拖拽排序 + 启停 |
+| `/settings` | 全配置表单（推送通道 / 调度 / 数据源 / 高级） |
+| `/reports` | 历史报表查询 / 重发 |
+| `/account` | 修改密码 |
+
+修改任意配置后立即生效（无需重启）。
+
+## 📦 目录结构
+
+```
+crypto-price-bot/
+├── server/                 # Node 22 后端 (TS)
+│   ├── src/
+│   │   ├── api/            # JSON API 路由
+│   │   ├── core/           # 业务核心（db / models / scheduler / task / indicators / notify）
+│   │   ├── http/           # 内置 http 包装（router / middleware / server）
+│   │   ├── util/           # logger / cron / auth / http / validate / id
+│   │   └── index.ts
+│   └── package.json
+├── web/                    # Vite + React + AntD 前端
+│   ├── src/
+│   │   ├── api/            # fetch wrapper
+│   │   ├── pages/          # Login / Dashboard / Coins / Settings / Reports / Account
+│   │   ├── layouts/
+│   │   ├── router.tsx
+│   │   └── main.tsx
+│   └── vite.config.ts
+├── data/                   # SQLite 文件（gitignore）
+├── Dockerfile              # 多阶段
+├── docker-compose.yml
+├── Makefile
+└── docs/superpowers/       # 设计文档 + 实现计划
+```
+
+## 🧪 测试
+
+```bash
+make test               # 全部 vitest
+make test.coverage      # + 覆盖率报告
+```
 
 ## 📄 开源协议
 
-[ISC License](file:///Users/skypesky/workSpaces/javascript/github/crypto-price-bot/package.json)
+[ISC License](LICENSE)
