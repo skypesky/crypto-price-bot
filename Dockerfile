@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1: server deps（包含 devDeps 用于构建）
 # ============================================================
-FROM node:22-alpine AS deps-server
+FROM mirror.gcr.io/library/node:22.20-alpine AS deps-server
 WORKDIR /app/server
 RUN apk add --no-cache python3 make g++ libc6-compat
 COPY server/package.json server/package-lock.json* ./
@@ -10,7 +10,7 @@ RUN npm install --no-audit --no-fund
 # ============================================================
 # Stage 2: web deps
 # ============================================================
-FROM node:22-alpine AS deps-web
+FROM mirror.gcr.io/library/node:22.20-alpine AS deps-web
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
 RUN npm install --no-audit --no-fund
@@ -21,7 +21,7 @@ RUN npm install --no-audit --no-fund
 FROM deps-server AS build-server
 WORKDIR /app/server
 COPY server/ ./
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
 # ============================================================
 # Stage 4: web build (Vite → 静态文件到 server/src/static)
@@ -34,7 +34,7 @@ RUN npm run build
 # ============================================================
 # Stage 5: runner（生产镜像）
 # ============================================================
-FROM node:22-alpine AS runner
+FROM mirror.gcr.io/library/node:22.20-alpine AS runner
 ENV NODE_ENV=production \
     PORT=8787 \
     TZ=Asia/Shanghai \

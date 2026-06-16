@@ -12,7 +12,7 @@ interface Settings {
   ua: string;
   doh_enabled: boolean;
   doh_server: string;
-  doh_bypass: string[];
+  doh_bypass: string;
   request_timeout_ms: number;
   max_retries: number;
 }
@@ -24,13 +24,13 @@ export function SettingsPage() {
 
   useEffect(() => {
     apiGet<Settings>('/api/settings').then((s) => {
-      form.setFieldsValue({
-        ...s,
-        tg_bot_token: s.tg_bot_token ?? '',
-        tg_chat_id: s.tg_chat_id ?? '',
-        feishu_webhook_url: s.feishu_webhook_url ?? '',
-        doh_bypass: s.doh_bypass.join(','),
-      });
+    form.setFieldsValue({
+      ...s,
+      tg_bot_token: s.tg_bot_token ?? '',
+      tg_chat_id: s.tg_chat_id ?? '',
+      feishu_webhook_url: s.feishu_webhook_url ?? '',
+      doh_bypass: Array.isArray(s.doh_bypass) ? s.doh_bypass.join(',') : (s.doh_bypass ?? ''),
+    });
     });
   }, [form]);
 
@@ -43,9 +43,7 @@ export function SettingsPage() {
         tg_bot_token: v.tg_bot_token || null,
         tg_chat_id: v.tg_chat_id || null,
         feishu_webhook_url: v.feishu_webhook_url || null,
-        doh_bypass: typeof v.doh_bypass === 'string'
-          ? (v.doh_bypass as unknown as string).split(',').map((s) => s.trim()).filter(Boolean)
-          : v.doh_bypass,
+        doh_bypass: v.doh_bypass.split(',').map((s: string) => s.trim()).filter(Boolean),
       };
       await apiPut('/api/settings', payload);
       message.success('已保存，配置立即生效');
