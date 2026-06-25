@@ -29,7 +29,7 @@ describe('config', () => {
   it('loadConfig 使用默认', () => {
     const c = loadConfig();
     expect(c.timezone).toBe('Asia/Shanghai');
-    expect(c.schedule_rule).toBe('0 0 9 * * *');
+    expect(c.schedule_rule).toBe('0 */30 * * * *');
     expect(c.usdt_to_cny).toBe(7.20);
   });
 

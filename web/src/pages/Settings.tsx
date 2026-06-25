@@ -43,7 +43,7 @@ export function SettingsPage() {
         tg_bot_token: v.tg_bot_token || null,
         tg_chat_id: v.tg_chat_id || null,
         feishu_webhook_url: v.feishu_webhook_url || null,
-        doh_bypass: v.doh_bypass.split(',').map((s: string) => s.trim()).filter(Boolean),
+        doh_bypass: (v.doh_bypass ?? '').split(',').map((s: string) => s.trim()).filter(Boolean),
       };
       await apiPut('/api/settings', payload);
       message.success('已保存，配置立即生效');
@@ -85,7 +85,7 @@ export function SettingsPage() {
                     <Input />
                   </Form.Item>
                   <Form.Item name="schedule_rule" label={<Tooltip title="6 段 cron（含秒）：秒 分 时 日 月 周">调度规则（cron 6 段）</Tooltip>}>
-                    <Input placeholder="0 0 9 * * *" />
+                    <Input placeholder="0 */30 * * * *" />
                   </Form.Item>
                   <Form.Item name="usdt_to_cny" label={<Tooltip title="1 USDT 兑人民币汇率">USDT → CNY 汇率</Tooltip>}>
                     <InputNumber min={0.1} step={0.01} style={{ width: 200 }} />

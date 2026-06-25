@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
 import { setDb, closeDb } from '../db.js';
 import { initDefaults } from '../models/setting.js';
-import { buildMessage, buildIndicators, type CoinResult } from './builder.js';
+import { buildMessage, buildIndicators, buildCoinLinks, type CoinResult } from './builder.js';
 import type { Coin } from '../models/coin.js';
 
 let customDb: Database.Database;
@@ -61,6 +61,7 @@ describe('buildMessage', () => {
     expect(msg).toContain('50,000');
     expect(msg).toContain('🔺 +5.5%');
     expect(msg).toContain('MA7');
+    expect(msg).toContain('¥360,000.00(7.20)');
   });
 
   it('失败币种', () => {
@@ -84,5 +85,43 @@ describe('buildMessage', () => {
     const msg = buildMessage([r]);
     expect(msg).toContain('USDT');
     expect(msg).toContain('tether');
+  });
+});
+
+describe('buildCoinLinks', () => {
+  it('BTC：生成正确的 gate / coingecko URL', () => {
+    const { gate, coingecko } = buildCoinLinks(fakeCoin());
+    expect(gate).toBe('https://www.gate.com/zh/price/btc-usdt');
+    expect(coingecko).toBe('https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin');
+  });
+
+  it('cg_id 会被 URL 编码', () => {
+    const { coingecko } = buildCoinLinks(fakeCoin({ cg_id: 'a b/c' }));
+    expect(coingecko).toContain('a%20b%2Fc');
+  });
+
+  it('gate_pair 转小写 + 下划线改连字符', () => {
+    const { gate } = buildCoinLinks(fakeCoin({ gate_pair: 'ETH_USDT' }));
+    expect(gate).toBe('https://www.gate.com/zh/price/eth-usdt');
+  });
+
+  it('稳定币无 gate_pair 时回退到 symbol', () => {
+    const { gate } = buildCoinLinks(fakeCoin({ symbol: 'USDT', gate_pair: null }));
+    expect(gate).toBe('https://www.gate.com/zh/price/usdt');
+  });
+
+  // 结构与可达性检查：如果将来 URL 形态变了（域名 / 路径改了），这些会先炸
+  it.each([
+    ['BTC',  'BTC_USDT',  'bitcoin'],
+    ['ETH',  'ETH_USDT',  'ethereum'],
+    ['BNB',  'BNB_USDT',  'binancecoin'],
+  ])('%s URL 结构合法 + 主机正确', (sym, pair, cgId) => {
+    const { gate, coingecko } = buildCoinLinks(fakeCoin({ symbol: sym, gate_pair: pair, cg_id: cgId }));
+    const g = new URL(gate);
+    const c = new URL(coingecko);
+    expect(g.host).toBe('www.gate.com');
+    expect(c.host).toBe('www.coingecko.com');
+    expect(g.pathname).toMatch(/^\/zh\/price\/[a-z0-9-]+$/);
+    expect(c.pathname).toMatch(/^\/zh\/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81\/[^/]+$/);
   });
 });

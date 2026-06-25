@@ -50,9 +50,9 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
       continue;
     }
     const usd = Number(ticker.last);
-    const cny = (usd * usdtToCny).toLocaleString('zh-CN', { minimumFractionDigits: 2 });
+    const cny = (usd * usdtToCny).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     msg += `🔹 *${coin.name}* (${coin.symbol})\n`;
-    msg += `   💰 人民币：\`¥${cny}\`\n`;
+    msg += `   💰 人民币：\`¥${cny}(${usdtToCny.toFixed(2)})\`\n`;
     msg += `   💵 美元：\`$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}\`\n`;
     if (indicators) {
       msg += `   ──────── 📈 趋势分析 ────────\n`;
@@ -68,9 +68,7 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
     } else {
       msg += `   📈 趋势数据暂时不可用\n`;
     }
-    const cgUrl = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(coin.cg_id)}`;
-    const gatePair = coin.gate_pair ? coin.gate_pair.replace('_', '-').toLowerCase() : coin.symbol.toLowerCase();
-    const gateUrl = `https://www.gate.com/zh/price/${gatePair}`;
+    const { gate: gateUrl, coingecko: cgUrl } = buildCoinLinks(coin);
     msg += `   🔗 [Gate](${gateUrl}) | [CoinGecko](${cgUrl})\n\n`;
   }
   msg += `⏰ 更新时间: ${now.toLocaleString('zh-CN', { timeZone: timezone })}`;
@@ -92,4 +90,17 @@ export function buildIndicators(closes: number[], currentPrice: number) {
     trend180d: calculateTrend(currentPrice, closes.length >= 180 ? closes[closes.length - 181] : null),
     trend1y:   calculateTrend(currentPrice, closes.length >= 365 ? closes[0]                  : null),
   };
+}
+
+/**
+ * 生成单个币种的外部链接（Gate / CoinGecko）。
+ * 抽出来便于测试 URL 形态；URL 改了/挂了就立刻在 build/test 时炸出来。
+ */
+export function buildCoinLinks(coin: Coin): { gate: string; coingecko: string } {
+  const gatePair = coin.gate_pair
+    ? coin.gate_pair.replace('_', '-').toLowerCase()
+    : coin.symbol.toLowerCase();
+  const gate = `https://www.gate.com/zh/price/${gatePair}`;
+  const coingecko = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(coin.cg_id)}`;
+  return { gate, coingecko };
 }

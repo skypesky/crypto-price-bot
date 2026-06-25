@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: Record<string, SettingValue> = {
   tg_chat_id: null,
   feishu_webhook_url: null,
   timezone: 'Asia/Shanghai',
-  schedule_rule: '0 0 9 * * *',
+  schedule_rule: '0 */30 * * * *',
   usdt_to_cny: 7.20,
   ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
   doh_enabled: true,

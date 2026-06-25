@@ -30,7 +30,7 @@ describe('settingsMapSchema', () => {
   });
 
   it('schedule_rule 必须是 6 段 cron', () => {
-    expect(settingsMapSchema.safeParse({ schedule_rule: '0 0 9 * * *' }).success).toBe(true);
+    expect(settingsMapSchema.safeParse({ schedule_rule: '0 */30 * * * *' }).success).toBe(true);
     expect(settingsMapSchema.safeParse({ schedule_rule: '0 0 9 * *' }).success).toBe(false);
   });
 

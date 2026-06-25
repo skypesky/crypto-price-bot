@@ -84,6 +84,22 @@ function getAgent(): Agent {
   return _agent;
 }
 
+/** DoH 场景：按 hostname 缓存带 servername(SNI) 的 dispatcher */
+const dohDispatcherCache = new Map<string, Agent>();
+
+function getDohDispatcher(hostname: string): Agent {
+  let d = dohDispatcherCache.get(hostname);
+  if (!d) {
+    d = new Agent({
+      keepAliveTimeout: 5_000,
+      keepAliveMaxTimeout: 10_000,
+      connect: { servername: hostname },
+    });
+    dohDispatcherCache.set(hostname, d);
+  }
+  return d;
+}
+
 /** 测试 / 关闭时清理 */
 export function disposeHttp(): void {
   if (_agent) {
@@ -91,6 +107,8 @@ export function disposeHttp(): void {
     _agent = null;
   }
   dohCache.clear();
+  for (const d of dohDispatcherCache.values()) d.close();
+  dohDispatcherCache.clear();
 }
 
 export interface HttpResponse<T = unknown> {
@@ -99,14 +117,14 @@ export interface HttpResponse<T = unknown> {
   data: T;
 }
 
-async function doFetch<T>(url: string, init: RequestInit, opts: HttpOptions): Promise<HttpResponse<T>> {
+async function doFetch<T>(url: string, init: RequestInit, opts: HttpOptions, dispatcher: Agent): Promise<HttpResponse<T>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT);
   try {
     const res = await undiciFetch(url, {
       ...(init as Record<string, unknown>),
       signal: controller.signal,
-      dispatcher: getAgent(),
+      dispatcher,
     } as Parameters<typeof undiciFetch>[1]);
     const text = await res.text();
     let data: unknown = text;
@@ -131,12 +149,13 @@ async function fetchWithRetry<T>(
   url: string,
   init: RequestInit,
   opts: HttpOptions,
+  dispatcher: Agent,
 ): Promise<HttpResponse<T>> {
   const retries = opts.retries ?? DEFAULT_RETRIES;
   let lastErr: unknown = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      return await doFetch<T>(url, init, opts);
+      return await doFetch<T>(url, init, opts, dispatcher);
     } catch (err) {
       lastErr = err;
       if (attempt < retries) {
@@ -152,17 +171,19 @@ async function fetchWithRetry<T>(
 export async function httpGet<T = unknown>(url: string, opts: HttpOptions = {}): Promise<HttpResponse<T>> {
   const u = new URL(url);
   const host = await resolveHostname(u.hostname, opts.doh);
-  // 替换 hostname 为 IP，并在 Host 头中保留原 hostname（SNI/虚拟主机）
-  const ipUrl = u.hostname === host ? url : `${u.protocol}//${host}${u.pathname}${u.search}${u.hash}`;
+  // DoH 把 hostname 解析成 IP 后：URL 用 IP 连，dispatcher 用 servername 让 SNI 回到原域名（HTTPS 证书校验）
+  const usedIp = u.hostname !== host;
+  const ipUrl = usedIp ? `${u.protocol}//${host}${u.pathname}${u.search}${u.hash}` : url;
+  const dispatcher = usedIp ? getDohDispatcher(u.hostname) : getAgent();
   return fetchWithRetry<T>(ipUrl, {
     method: 'GET',
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; crypto-price-bot/2.0)',
       Accept: 'application/json',
-      ...(host !== u.hostname ? { Host: u.hostname } : {}),
+      ...(usedIp ? { Host: u.hostname } : {}),
       ...(opts.headers ?? {}),
     },
-  }, opts);
+  }, opts, dispatcher);
 }
 
 export async function httpPost<T = unknown>(
@@ -172,17 +193,19 @@ export async function httpPost<T = unknown>(
 ): Promise<HttpResponse<T>> {
   const u = new URL(url);
   const host = await resolveHostname(u.hostname, opts.doh);
-  const ipUrl = u.hostname === host ? url : `${u.protocol}//${host}${u.pathname}${u.search}${u.hash}`;
+  const usedIp = u.hostname !== host;
+  const ipUrl = usedIp ? `${u.protocol}//${host}${u.pathname}${u.search}${u.hash}` : url;
+  const dispatcher = usedIp ? getDohDispatcher(u.hostname) : getAgent();
   return fetchWithRetry<T>(ipUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 (compatible; crypto-price-bot/2.0)',
-      ...(host !== u.hostname ? { Host: u.hostname } : {}),
+      ...(usedIp ? { Host: u.hostname } : {}),
       ...(opts.headers ?? {}),
     },
     body: JSON.stringify(body),
-  }, opts);
+  }, opts, dispatcher);
 }
 
 /** 抑制 undici global agent 警告：避免测试时泄漏 */

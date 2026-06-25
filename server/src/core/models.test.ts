@@ -67,7 +67,7 @@ describe('setting model', () => {
     setting.initDefaults();
     const all = setting.getAllSettings();
     expect(all.timezone).toBe('Asia/Shanghai');
-    expect(all.schedule_rule).toBe('0 0 9 * * *');
+    expect(all.schedule_rule).toBe('0 */30 * * * *');
   });
 
   it('setMany 覆盖', () => {

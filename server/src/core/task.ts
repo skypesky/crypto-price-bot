@@ -1,5 +1,6 @@
 import { getGateTicker } from './gate/ticker.js';
 import { getGateKlines } from './gate/klines.js';
+import { getUsdtToCnyRate } from './gate/fx.js';
 import { buildIndicators, buildMessage, type CoinResult } from './message/builder.js';
 import { sendToTG } from './notify/telegram.js';
 import { sendToFeishu } from './notify/feishu.js';
@@ -59,7 +60,11 @@ export async function runTask(triggeredBy: 'cron' | 'manual' | 'test' | 'resend'
   const okCount = results.filter(r => r.ticker !== null).length;
   const success = okCount > 0;
 
-  const message = buildMessage(results);
+  // 实时汇率（带 1h 缓存，失败回落到 settings.usdt_to_cny）
+  const fx = await getUsdtToCnyRate();
+  log.info(`usdt→cny rate: ${fx.rate} (${fx.source})`);
+
+  const message = buildMessage(results, { usdtToCny: fx.rate });
   log.info(`results: ${okCount}/${coins.length} ok`);
 
   // 并行推送

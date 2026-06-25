@@ -27,8 +27,7 @@ export async function getGateKlines(pair: string, days = 365): Promise<number[]>
   if (!Array.isArray(res.data)) {
     throw new Error(`Gate.io klines invalid: ${pair}`);
   }
-  // Gate.io 返回顺序：从新到旧。我们需要从旧到新（升序）。
+  // Gate.io 返回顺序：升序（oldest → newest），closes[0] 是 N 天前，closes[-1] 是昨天。
   const closes = res.data.map((row) => Number(row[2])).filter((n) => Number.isFinite(n));
-  closes.reverse();
   return closes;
 }

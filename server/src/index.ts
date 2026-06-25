@@ -4,8 +4,32 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+
+// Node 20.6+ 内置 --env-file 支持。若未通过 flag 传入且存在 .env，自动加载。
+if (!process.env['__CPB_ENV_LOADED__']) {
+  const envFile = resolve(process.cwd(), '.env');
+  if (existsSync(envFile)) {
+    try {
+      const text = readFileSync(envFile, 'utf8');
+      for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq < 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let value = trimmed.slice(eq + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        if (process.env[key] === undefined) process.env[key] = value;
+      }
+      process.env['__CPB_ENV_LOADED__'] = '1';
+    } catch { /* ignore */ }
+  }
+}
+
 import { initDb, closeDb, pingDb } from './core/db.js';
 import { initDefaults as initSettingDefaults } from './core/models/setting.js';
 import { initDefaultCoins } from './core/models/coin.js';

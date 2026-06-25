@@ -71,6 +71,19 @@ describe('httpPost', () => {
   });
 });
 
+describe('DoH + HTTPS SNI', () => {
+  // 用真实网络打 api.gateio.ws，触发 DoH 解析并验证 servername（SNI）正确
+  it('DoH 解析为 IP 后 HTTPS 仍能通过（servername 兜底）', async () => {
+    disposeHttp(); // 清除缓存，避免上轮把 hostname 缓存为 IP
+    const res = await httpGet('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT', {
+      retries: 0,
+      timeoutMs: 10_000,
+      doh: { endpoint: 'https://1.1.1.1/dns-query' },
+    });
+    expect(res.status).toBe(200);
+  }, 15_000);
+});
+
 describe('HttpError', () => {
   it('带 status', () => {
     const e = new HttpError('test', 404);
