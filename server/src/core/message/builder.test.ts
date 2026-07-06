@@ -8,7 +8,7 @@ import type { Coin } from '../models/coin.js';
 let customDb: Database.Database;
 
 const fakeCoin = (overrides: Partial<Coin> = {}): Coin => ({
-  id: 1, symbol: 'BTC', name: '比特币', gate_pair: 'BTC_USDT', cg_id: 'bitcoin',
+  id: 1, symbol: 'BTC', name: '比特币', gate_pair: 'BTC_USDT', gate_slug: 'bitcoin', cg_id: 'bitcoin',
   sort_order: 0, enabled: 1, created_at: 0, updated_at: 0,
   ...overrides,
 });
@@ -91,7 +91,7 @@ describe('buildMessage', () => {
 describe('buildCoinLinks', () => {
   it('BTC：生成正确的 gate / coingecko URL', () => {
     const { gate, coingecko } = buildCoinLinks(fakeCoin());
-    expect(gate).toBe('https://www.gate.com/zh/price/btc-usdt');
+    expect(gate).toBe('https://www.gate.com/zh/price/bitcoin-btc');
     expect(coingecko).toBe('https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin');
   });
 
@@ -100,28 +100,32 @@ describe('buildCoinLinks', () => {
     expect(coingecko).toContain('a%20b%2Fc');
   });
 
-  it('gate_pair 转小写 + 下划线改连字符', () => {
-    const { gate } = buildCoinLinks(fakeCoin({ gate_pair: 'ETH_USDT' }));
-    expect(gate).toBe('https://www.gate.com/zh/price/eth-usdt');
+  it('ATOM 用 cosmos-hub slug', () => {
+    const { gate } = buildCoinLinks(fakeCoin({ symbol: 'ATOM', gate_slug: 'cosmos-hub' }));
+    expect(gate).toBe('https://www.gate.com/zh/price/cosmos-hub-atom');
   });
 
-  it('稳定币无 gate_pair 时回退到 symbol', () => {
-    const { gate } = buildCoinLinks(fakeCoin({ symbol: 'USDT', gate_pair: null }));
-    expect(gate).toBe('https://www.gate.com/zh/price/usdt');
+  it('gate_slug 为空时回退到 symbol（小写）', () => {
+    const { gate } = buildCoinLinks(fakeCoin({ symbol: 'USDT', gate_pair: null, gate_slug: null }));
+    expect(gate).toBe('https://www.gate.com/zh/price/usdt-usdt');
   });
 
   // 结构与可达性检查：如果将来 URL 形态变了（域名 / 路径改了），这些会先炸
   it.each([
-    ['BTC',  'BTC_USDT',  'bitcoin'],
-    ['ETH',  'ETH_USDT',  'ethereum'],
-    ['BNB',  'BNB_USDT',  'binancecoin'],
-  ])('%s URL 结构合法 + 主机正确', (sym, pair, cgId) => {
-    const { gate, coingecko } = buildCoinLinks(fakeCoin({ symbol: sym, gate_pair: pair, cg_id: cgId }));
+    ['BTC',  'bitcoin',     'bitcoin'],
+    ['ETH',  'ethereum',    'ethereum'],
+    ['BNB',  'bnb',         'binancecoin'],
+    ['FIL',  'filecoinipfs','filecoin'],
+    ['ATOM', 'cosmos-hub',  'cosmos'],
+  ])('%s URL 结构合法 + 主机正确', (sym, slug, cgId) => {
+    const { gate, coingecko } = buildCoinLinks(fakeCoin({ symbol: sym, gate_slug: slug, cg_id: cgId }));
     const g = new URL(gate);
     const c = new URL(coingecko);
     expect(g.host).toBe('www.gate.com');
     expect(c.host).toBe('www.coingecko.com');
-    expect(g.pathname).toMatch(/^\/zh\/price\/[a-z0-9-]+$/);
+    expect(g.pathname).toMatch(new RegExp(`^/zh/price/${slug}-${sym.toLowerCase()}$`));
     expect(c.pathname).toMatch(/^\/zh\/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81\/[^/]+$/);
   });
+
+  // 真正的 slug 回归测试放到了 models.test.ts 的 DEFAULT_COINS 上（直接验证 DB 默认值）。
 });

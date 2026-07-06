@@ -19,6 +19,7 @@ export function registerCoins(r: Router): void {
       symbol: parsed.data.symbol,
       name: parsed.data.name,
       gate_pair: parsed.data.gate_pair,
+      gate_slug: parsed.data.gate_slug ?? null,
       cg_id: parsed.data.cg_id,
       sort_order: parsed.data.sort_order ?? 0,
       enabled: parsed.data.enabled ? 1 : 0,
@@ -40,6 +41,7 @@ export function registerCoins(r: Router): void {
     if (parsed.data.symbol !== undefined) patch.symbol = parsed.data.symbol;
     if (parsed.data.name !== undefined) patch.name = parsed.data.name;
     if (parsed.data.gate_pair !== undefined) patch.gate_pair = parsed.data.gate_pair;
+    if (parsed.data.gate_slug !== undefined) patch.gate_slug = parsed.data.gate_slug;
     if (parsed.data.cg_id !== undefined) patch.cg_id = parsed.data.cg_id;
     if (parsed.data.sort_order !== undefined) patch.sort_order = parsed.data.sort_order;
     if (parsed.data.enabled !== undefined) patch.enabled = parsed.data.enabled ? 1 : 0;

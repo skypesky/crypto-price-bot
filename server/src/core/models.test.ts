@@ -15,7 +15,7 @@ beforeAll(() => {
     CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);
-    CREATE TABLE coins (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT UNIQUE NOT NULL, name TEXT NOT NULL, gate_pair TEXT, cg_id TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE coins (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT UNIQUE NOT NULL, name TEXT NOT NULL, gate_pair TEXT, gate_slug TEXT, cg_id TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE reports (id INTEGER PRIMARY KEY AUTOINCREMENT, triggered_by TEXT NOT NULL, success INTEGER NOT NULL, total_coins INTEGER NOT NULL, ok_coins INTEGER NOT NULL, tg_sent INTEGER NOT NULL, feishu_sent INTEGER NOT NULL, message TEXT NOT NULL, summary TEXT NOT NULL, created_at INTEGER NOT NULL);
   `);
   setDb(customDb);
@@ -81,17 +81,51 @@ describe('coin model', () => {
   it('initDefaultCoins + list', () => {
     coin.initDefaultCoins();
     const list = coin.listCoins();
-    expect(list.length).toBe(11);
+    expect(list.length).toBe(13);
     expect(list[0]?.symbol).toBe('BTC');
+  });
+
+  // gate.com slug 回归测试：
+  // - BNB 旧 slug 'binancecoin' 已被 gate.com 改路由，现在会劫持到狗头页面。新 slug 必须是 'bnb'。
+  // - FIL 旧 slug 'filecoin' 同样被劫持，新 slug 必须是 'filecoinipfs'（在 /zh/trade/FIL_USDT 页脚可找到官方链接）。
+  it.each([
+    ['BNB', 'bnb'],
+    ['FIL', 'filecoinipfs'],
+  ])('%s 默认 gate_slug 是 %s（不是已失效的旧 slug）', (symbol, expectedSlug) => {
+    const found = coin.DEFAULT_COINS.find((c) => c.symbol === symbol);
+    expect(found).toBeDefined();
+    expect(found!.gate_slug).toBe(expectedSlug);
+    // 反向断言：防止回退到已知坏 slug
+    expect(found!.gate_slug).not.toBe('binancecoin');
+    expect(found!.gate_slug).not.toBe('filecoin');
+  });
+
+  // 新增监控币种：YGG (Yield Guild Games) 和 SAGA
+  // - gate.com 链接已实测可达：/zh/price/yieldguildgames-ygg / /zh/price/saga-saga
+  // - gate.io USDT 交易对均存在且 tradable
+  // - CoinGecko ID 通过官方搜索 API 确认
+  it.each([
+    ['YGG',  'Yield Guild Games', 'YGG_USDT',  'yieldguildgames', 'yield-guild-games'],
+    ['SAGA', 'Saga',              'SAGA_USDT', 'saga',            'saga-2'],
+  ])('%s 已纳入默认监控且各字段正确', (symbol, name, gatePair, slug, cgId) => {
+    const found = coin.DEFAULT_COINS.find((c) => c.symbol === symbol);
+    expect(found, `缺少 ${symbol}`).toBeDefined();
+    expect(found!.name).toBe(name);
+    expect(found!.gate_pair).toBe(gatePair);
+    expect(found!.gate_slug).toBe(slug);
+    expect(found!.cg_id).toBe(cgId);
+    expect(found!.enabled).toBe(1);
   });
 
   it('CRUD', () => {
     const c = coin.createCoin({
-      symbol: 'TEST', name: '测试币', gate_pair: 'TEST_USDT', cg_id: 'test', sort_order: 99, enabled: 1,
+      symbol: 'TEST', name: '测试币', gate_pair: 'TEST_USDT', gate_slug: 'test', cg_id: 'test', sort_order: 99, enabled: 1,
     });
     expect(c.id).toBeGreaterThan(0);
-    const updated = coin.updateCoin(c.id, { name: '改名' });
+    expect(c.gate_slug).toBe('test');
+    const updated = coin.updateCoin(c.id, { name: '改名', gate_slug: 'renamed' });
     expect(updated?.name).toBe('改名');
+    expect(updated?.gate_slug).toBe('renamed');
     expect(coin.deleteCoin(c.id)).toBe(true);
   });
 

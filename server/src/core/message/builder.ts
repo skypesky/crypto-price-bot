@@ -97,10 +97,12 @@ export function buildIndicators(closes: number[], currentPrice: number) {
  * 抽出来便于测试 URL 形态；URL 改了/挂了就立刻在 build/test 时炸出来。
  */
 export function buildCoinLinks(coin: Coin): { gate: string; coingecko: string } {
-  const gatePair = coin.gate_pair
-    ? coin.gate_pair.replace('_', '-').toLowerCase()
+  // gate.com 实际路径格式：`{name-slug}-{symbol}`，例如 bitcoin-btc / cosmos-hub-atom。
+  // 没有 gate_slug 的旧数据回退到 symbol（小写）。
+  const slug = (coin.gate_slug && coin.gate_slug.trim())
+    ? coin.gate_slug.toLowerCase()
     : coin.symbol.toLowerCase();
-  const gate = `https://www.gate.com/zh/price/${gatePair}`;
+  const gate = `https://www.gate.com/zh/price/${slug}-${coin.symbol.toLowerCase()}`;
   const coingecko = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(coin.cg_id)}`;
   return { gate, coingecko };
 }

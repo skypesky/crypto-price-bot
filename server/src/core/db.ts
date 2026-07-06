@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS coins (
   symbol      TEXT    UNIQUE NOT NULL,
   name        TEXT    NOT NULL,
   gate_pair   TEXT,
+  gate_slug   TEXT,
   cg_id       TEXT    NOT NULL,
   sort_order  INTEGER NOT NULL DEFAULT 0,
   enabled     INTEGER NOT NULL DEFAULT 1,
@@ -87,8 +88,28 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
 `;
 
+/** 旧币种 → gate.com slug（用于现有 DB 回填 gate_slug）。
+ *  注意 BNB / FIL 的 slug 已被 gate.com 改路由：BNB 旧 'binancecoin' 现在会跳到狗头页；
+ *  FIL 旧 'filecoin' 同样被劫持。新 slug 取自 gate.com 官方 trade 页脚。 */
+const GATE_SLUG_BY_SYMBOL: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
+  ABT: 'arcblock', BNB: 'bnb', ICX: 'icon', FIL: 'filecoinipfs',
+  ATOM: 'cosmos-hub', OP: 'optimism', GT: 'gate',
+  YGG: 'yieldguildgames', SAGA: 'saga',
+};
+
 function migrate(db: Database.Database): void {
   db.exec(SCHEMA);
+  // 兼容 v2.0 之前没 gate_slug 列的 DB
+  const cols = db.prepare(`PRAGMA table_info(coins)`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === 'gate_slug')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN gate_slug TEXT`);
+  }
+  // 回填现有币种的 gate_slug（仅当为空时）
+  const upd = db.prepare(`UPDATE coins SET gate_slug = ? WHERE symbol = ? AND (gate_slug IS NULL OR gate_slug = '')`);
+  for (const [symbol, slug] of Object.entries(GATE_SLUG_BY_SYMBOL)) {
+    upd.run(slug, symbol);
+  }
 }
 
 export function pingDb(): boolean {

@@ -12,6 +12,7 @@ interface CoinForm {
   symbol: string;
   name: string;
   gate_pair: string | null;
+  gate_slug: string | null;
   cg_id: string;
   enabled: boolean;
 }
@@ -39,6 +40,7 @@ function SortableRow({ coin, onEdit, onDelete, onToggle }: {
       </td>
       <td>{coin.name}</td>
       <td><code>{coin.gate_pair ?? '—'}</code></td>
+      <td><code>{coin.gate_slug ?? '—'}</code></td>
       <td><code>{coin.cg_id}</code></td>
       <td>{coin.sort_order}</td>
       <td>
@@ -81,7 +83,7 @@ export function Coins() {
   const openAdd = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ enabled: true, gate_pair: '' });
+    form.setFieldsValue({ enabled: true, gate_pair: '', gate_slug: '' });
     setModalOpen(true);
   };
 
@@ -91,6 +93,7 @@ export function Coins() {
       symbol: c.symbol,
       name: c.name,
       gate_pair: c.gate_pair ?? '',
+      gate_slug: c.gate_slug ?? '',
       cg_id: c.cg_id,
       enabled: !!c.enabled,
     });
@@ -103,6 +106,7 @@ export function Coins() {
       symbol: v.symbol.toUpperCase(),
       name: v.name,
       gate_pair: v.gate_pair && v.gate_pair.trim() ? v.gate_pair.toUpperCase() : null,
+      gate_slug: v.gate_slug && v.gate_slug.trim() ? v.gate_slug.toLowerCase() : null,
       cg_id: v.cg_id,
       enabled: v.enabled,
     };
@@ -169,6 +173,7 @@ export function Coins() {
               <th style={th}>Symbol</th>
               <th style={th}>名称</th>
               <th style={th}>Gate Pair</th>
+              <th style={th}>Gate Slug</th>
               <th style={th}>CoinGecko ID</th>
               <th style={th}>顺序</th>
               <th style={th}>启用</th>
@@ -201,6 +206,9 @@ export function Coins() {
           </Form.Item>
           <Form.Item name="gate_pair" label="Gate Pair（如 BTC_USDT；稳定币留空）">
             <Input placeholder="留空表示稳定币" />
+          </Form.Item>
+          <Form.Item name="gate_slug" label="Gate Slug（如 bitcoin；决定 gate.com/zh/price/{slug}-{symbol}）" rules={[{ pattern: /^[a-z0-9-]*$/, message: '只能小写字母、数字、连字符' }]}>
+            <Input placeholder="留空则回退到 symbol" />
           </Form.Item>
           <Form.Item name="cg_id" label="CoinGecko ID（如 bitcoin）" rules={[{ required: true }]}>
             <Input />
