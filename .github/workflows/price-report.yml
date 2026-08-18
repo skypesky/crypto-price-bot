@@ -18,9 +18,20 @@ jobs:
         with:
           node-version: '22'
 
+      - name: CI contract check
+        run: bash scripts/check-ci.sh
+
       - name: Install server deps
         working-directory: server
         run: npm ci
+
+      - name: Build server
+        working-directory: server
+        run: npm run build
+
+      - name: Run tests
+        working-directory: server
+        run: npm test
 
       - name: Build web
         working-directory: web

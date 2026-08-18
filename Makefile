@@ -6,7 +6,7 @@
 #   - make xxx.docker                       → Docker 系列
 # ============================================================
 
-.PHONY: install dev build start stop test test.coverage clean help \
+.PHONY: install dev build start stop test test.coverage check.ci clean help \
         build.docker dev.docker start.docker stop.docker restart.docker \
         logs.docker shell.docker clean.docker
 
@@ -28,6 +28,7 @@ help:
 	@echo "  make stop            停止 native 进程"
 	@echo "  make test            运行测试 (server vitest)"
 	@echo "  make test.coverage   单元测试 + 覆盖率"
+	@echo "  make check.ci        检查 CI workflow 契约（防止删关键步骤）"
 	@echo "  make clean           清理 dist + node_modules + data"
 	@echo ""
 	@echo "Docker 系列 (xxx.docker):"
@@ -99,6 +100,11 @@ test:
 test.coverage:
 	@echo "Running tests with coverage..."
 	@cd server && npm run test:coverage
+
+check.ci:
+	@echo "Running CI contract checks..."
+	@bash scripts/check-ci.sh
+	@echo "✅ CI workflow contract OK."
 
 # ============================================================
 # Docker 系列
