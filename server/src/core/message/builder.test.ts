@@ -62,6 +62,34 @@ describe('buildMessage', () => {
     expect(msg).toContain('🔺 +5.5%');
     expect(msg).toContain('MA7');
     expect(msg).toContain('¥360,000.00(7.20)');
+    // MA 指标同时显示美元和人民币金额
+    // ma7 = 49000, ratio = 50000/49000 ≈ 1.02 → ➡️
+    expect(msg).toContain('MA7:   ➡️ $49000.00 ¥352,800.00');
+    // ma30 = 48000, ratio ≈ 1.04 → ➡️
+    expect(msg).toContain('MA30:  ➡️ $48000.00 ¥345,600.00');
+    // ma90 = 45000, ratio ≈ 1.11 → 📈 偏高
+    expect(msg).toContain('MA90:  📈 $45000.00 ¥324,000.00 (偏高)');
+    // ma180 = 40000, ratio = 1.25 → 📈 偏高
+    expect(msg).toContain('MA180: 📈 $40000.00 ¥288,000.00 (偏高)');
+    // ma365 = 30000, ratio ≈ 1.67 → 📈 偏高
+    expect(msg).toContain('MA365: 📈 $30000.00 ¥216,000.00 (偏高)');
+  });
+
+  it('MA 偏低（ratio < 0.9）', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: {
+        ma7: 60000, ma30: 70000, ma90: 80000, ma180: 90000, ma365: null,
+        trend7d: -16.7, trend30d: -28.6, trend90d: -37.5, trend180d: -44.4, trend1y: null,
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 7.0, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z') });
+    // ma7 = 60000, ratio = 50000/60000 ≈ 0.83 → 📉 偏低
+    expect(msg).toContain('MA7:   📉 $60000.00 ¥420,000.00 (偏低)');
+    // ma365 数据不足 → N/A
+    expect(msg).toContain('MA365: N/A');
   });
 
   it('失败币种', () => {

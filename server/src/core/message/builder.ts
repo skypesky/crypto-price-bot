@@ -29,12 +29,15 @@ function formatTrend(trend: number | null): string {
   return `${trend}%`;
 }
 
-function formatMA(ma: number | null, current: number): string {
+function formatMA(ma: number | null, current: number, usdtToCny: number): string {
   if (ma === null) return 'N/A';
   const ratio = current / ma;
-  if (ratio > 1.1) return `📈 $${ma.toFixed(2)} (偏高)`;
-  if (ratio < 0.9) return `📉 $${ma.toFixed(2)} (偏低)`;
-  return `➡️ $${ma.toFixed(2)}`;
+  const cny = (ma * usdtToCny).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const usdStr = `$${ma.toFixed(2)}`;
+  const cnyStr = `¥${cny}`;
+  if (ratio > 1.1) return `📈 ${usdStr} ${cnyStr} (偏高)`;
+  if (ratio < 0.9) return `📉 ${usdStr} ${cnyStr} (偏低)`;
+  return `➡️ ${usdStr} ${cnyStr}`;
 }
 
 export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date }): string {
@@ -60,11 +63,11 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
       msg += `   📅 90天:  ${formatTrend(indicators.trend90d)}   📅 180天: ${formatTrend(indicators.trend180d)}\n`;
       msg += `   📅 1年:   ${formatTrend(indicators.trend1y)}\n`;
       msg += `   ──────── 📊 均线 (MA) ────────\n`;
-      msg += `   MA7:   ${formatMA(indicators.ma7, usd)}\n`;
-      msg += `   MA30:  ${formatMA(indicators.ma30, usd)}\n`;
-      msg += `   MA90:  ${formatMA(indicators.ma90, usd)}\n`;
-      msg += `   MA180: ${formatMA(indicators.ma180, usd)}\n`;
-      msg += `   MA365: ${formatMA(indicators.ma365, usd)}\n`;
+      msg += `   MA7:   ${formatMA(indicators.ma7, usd, usdtToCny)}\n`;
+      msg += `   MA30:  ${formatMA(indicators.ma30, usd, usdtToCny)}\n`;
+      msg += `   MA90:  ${formatMA(indicators.ma90, usd, usdtToCny)}\n`;
+      msg += `   MA180: ${formatMA(indicators.ma180, usd, usdtToCny)}\n`;
+      msg += `   MA365: ${formatMA(indicators.ma365, usd, usdtToCny)}\n`;
     } else {
       msg += `   📈 趋势数据暂时不可用\n`;
     }
