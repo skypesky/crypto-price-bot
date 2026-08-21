@@ -52,13 +52,22 @@ install:
 	@cd web && npm install
 	@echo "✅ Done."
 
-# 杀旧 native 进程
+# 杀旧 native 进程（同时覆盖生产 dist 模式与开发 tsx watch 模式 + 强占 :8787 端口）
 kill-old:
-	@if pgrep -f "node.*dist/index.js" > /dev/null; then \
-		echo "Stopping old server..."; \
-		pkill -f "node.*dist/index.js" 2>/dev/null || true; \
-		sleep 1; \
+	@# 生产模式 (make start)
+	@pkill -f "node.*dist/index.js" 2>/dev/null || true
+	@# 开发模式 (make dev) —— tsx watch + 它 spawn 出的 node 子进程
+	@pkill -f "tsx watch" 2>/dev/null || true
+	@pkill -f "vite" 2>/dev/null || true
+	@# 兜底：任何还在监听 :8787 的进程一律杀掉（解决 Ctrl+C 没干净的情况）
+	@if command -v lsof >/dev/null 2>&1; then \
+		PIDS=$$(lsof -ti tcp:8787 2>/dev/null || true); \
+		if [ -n "$$PIDS" ]; then \
+			echo "Force-killing leftover :8787 listeners: $$PIDS"; \
+			echo "$$PIDS" | xargs kill -9 2>/dev/null || true; \
+		fi; \
 	fi
+	@sleep 1
 
 build:
 	@echo "Building server..."
@@ -72,9 +81,14 @@ dev: kill-old
 		echo "❌ $(ENV_FILE) not found. cp .env.example .env 并填入配置"; \
 		exit 1; \
 	fi
-	@echo "Starting dev mode (server tsx watch + web vite)..."
-	@cd server && set -a && . ../$(ENV_FILE) && set +a && npx tsx watch src/index.ts &
-	@cd web && npx vite
+	@echo "Starting dev mode (server tsx watch + web vite, both under concurrently)..."
+	@cd server && set -a && . ../$(ENV_FILE) && set +a && \
+		npx concurrently \
+			--names "server,web" \
+			--prefix-colors "cyan,magenta" \
+			--kill-others-on-fail \
+			"npx tsx watch src/index.ts" \
+			"cd ../web && npx vite"
 
 start: kill-old build
 	@if [ ! -f $(ENV_FILE) ]; then \
@@ -84,10 +98,7 @@ start: kill-old build
 	@echo "Starting production mode..."
 	@set -a && . $(ENV_FILE) && set +a && node server/dist/index.js
 
-stop:
-	@echo "Stopping native service..."
-	@pkill -f "node.*dist/index.js" 2>/dev/null || true
-	@echo "✅ Stopped."
+stop: kill-old
 
 # ============================================================
 # 测试
