@@ -46,7 +46,7 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
   const timezone = ctx?.timezone ?? cfg.timezone;
   const now = ctx?.now ?? new Date();
   const trigger = ctx?.trigger ?? 'local';
-  let msg = `📊 *加密货币价格报告 [${trigger}] (含技术指标)*\n\n`;
+  let msg = `📊 *加密货币价格报告 (含技术指标) from ${trigger}*\n\n`;
   for (const r of results) {
     const { coin, ticker, indicators } = r;
     if (!ticker) {

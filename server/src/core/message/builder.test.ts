@@ -63,7 +63,7 @@ describe('buildMessage', () => {
     expect(msg).toContain('MA7');
     expect(msg).toContain('¥360,000.00(7.20)');
     // 默认 trigger=local
-    expect(msg).toContain('加密货币价格报告 [local] (含技术指标)');
+    expect(msg).toContain('加密货币价格报告 (含技术指标) from local');
     // MA 指标同时显示美元和人民币金额
     // ma7 = 49000, ratio = 50000/49000 ≈ 1.02 → ➡️
     expect(msg).toContain('MA7:   ➡️ $49000.00 ¥352,800.00');
@@ -88,8 +88,8 @@ describe('buildMessage', () => {
       source: 'gate',
     };
     const msg = buildMessage([r], { usdtToCny: 7.2, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z'), trigger: 'ci' });
-    expect(msg).toContain('加密货币价格报告 [ci] (含技术指标)');
-    expect(msg).not.toContain('[local]');
+    expect(msg).toContain('加密货币价格报告 (含技术指标) from ci');
+    expect(msg).not.toContain('from local');
   });
 
   it('MA 偏低（ratio < 0.9）', () => {
