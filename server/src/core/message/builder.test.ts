@@ -62,6 +62,8 @@ describe('buildMessage', () => {
     expect(msg).toContain('🔺 +5.5%');
     expect(msg).toContain('MA7');
     expect(msg).toContain('¥360,000.00(7.20)');
+    // 默认 trigger=local
+    expect(msg).toContain('加密货币价格报告 [local] (含技术指标)');
     // MA 指标同时显示美元和人民币金额
     // ma7 = 49000, ratio = 50000/49000 ≈ 1.02 → ➡️
     expect(msg).toContain('MA7:   ➡️ $49000.00 ¥352,800.00');
@@ -73,6 +75,21 @@ describe('buildMessage', () => {
     expect(msg).toContain('MA180: 📈 $40000.00 ¥288,000.00 (偏高)');
     // ma365 = 30000, ratio ≈ 1.67 → 📈 偏高
     expect(msg).toContain('MA365: 📈 $30000.00 ¥216,000.00 (偏高)');
+  });
+
+  it('CI 触发时标题显示 [ci]', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: {
+        ma7: 49000, ma30: 48000, ma90: 45000, ma180: 40000, ma365: 30000,
+        trend7d: 5.5, trend30d: 10.2, trend90d: 20.0, trend180d: 30.0, trend1y: 50.0,
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 7.2, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z'), trigger: 'ci' });
+    expect(msg).toContain('加密货币价格报告 [ci] (含技术指标)');
+    expect(msg).not.toContain('[local]');
   });
 
   it('MA 偏低（ratio < 0.9）', () => {

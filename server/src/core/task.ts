@@ -64,7 +64,9 @@ export async function runTask(triggeredBy: 'cron' | 'manual' | 'test' | 'resend'
   const fx = await getUsdtToCnyRate();
   log.info(`usdt→cny rate: ${fx.rate} (${fx.source})`);
 
-  const message = buildMessage(results, { usdtToCny: fx.rate });
+  // 通过 GITHUB_ACTIONS 区分本地 / CI，标签会展示在报告标题里
+  const trigger: 'local' | 'ci' = process.env['GITHUB_ACTIONS'] === 'true' ? 'ci' : 'local';
+  const message = buildMessage(results, { usdtToCny: fx.rate, trigger });
   log.info(`results: ${okCount}/${coins.length} ok`);
 
   // 并行推送

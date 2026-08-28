@@ -40,12 +40,13 @@ function formatMA(ma: number | null, current: number, usdtToCny: number): string
   return `➡️ ${usdStr} ${cnyStr}`;
 }
 
-export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date }): string {
+export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date; trigger?: 'local' | 'ci' }): string {
   const cfg = getConfig();
   const usdtToCny = ctx?.usdtToCny ?? cfg.usdt_to_cny;
   const timezone = ctx?.timezone ?? cfg.timezone;
   const now = ctx?.now ?? new Date();
-  let msg = '📊 *加密货币价格报告 (含技术指标)*\n\n';
+  const trigger = ctx?.trigger ?? 'local';
+  let msg = `📊 *加密货币价格报告 [${trigger}] (含技术指标)*\n\n`;
   for (const r of results) {
     const { coin, ticker, indicators } = r;
     if (!ticker) {
