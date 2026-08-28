@@ -133,8 +133,11 @@ async function bootstrap(): Promise<void> {
   // 9. GitHub Actions 模式：执行一次任务后退出
   if (isGitHubActions) {
     log.info('GITHUB_ACTIONS mode: running single task then exit');
-    runTask('manual').then(() => {
-      log.info('GITHUB_ACTIONS task done, exiting');
+    // schedule 触发 = cron；workflow_dispatch 触发 = manual
+    const triggeredBy: 'cron' | 'manual' =
+      process.env['GITHUB_EVENT_NAME'] === 'schedule' ? 'cron' : 'manual';
+    runTask(triggeredBy).then(() => {
+      log.info(`GITHUB_ACTIONS task (${triggeredBy}) done, exiting`);
       setTimeout(() => shutdown(server, closeHttp), 5000);
     }).catch((err) => {
       log.error('GITHUB_ACTIONS task failed', err);

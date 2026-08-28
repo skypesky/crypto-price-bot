@@ -44,5 +44,4 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           TIMEZONE: ${{ vars.TIMEZONE || 'Asia/Shanghai' }}
-          GITHUB_ACTIONS: 'true'
         run: node dist/index.js
