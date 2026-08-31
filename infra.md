@@ -20,7 +20,7 @@
 **核心特性（README 自述）：**
 
 - Web Dashboard：账密登录，可视化编辑所有配置
-- 多币种监控：BTC / ETH / USDT / SOL / ABT / BNB / ICX / FIL / ATOM / OP / GT
+- 多币种监控：BTC / ETH / USDT / SOL / ABT / BNB / FIL / ATOM / OP / GT
 - 技术指标：MA7/30/90/180/365 + 7d/30d/90d/180d/1y 趋势
 - 双语计价：USD + CNY（汇率走 CoinGecko）
 - 定时推送：cron 6 段（支持秒 + 时区）

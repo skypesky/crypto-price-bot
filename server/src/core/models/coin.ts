@@ -20,13 +20,12 @@ export const DEFAULT_COINS: Array<Omit<Coin, 'id' | 'created_at' | 'updated_at'>
   { symbol: 'SOL',  name: '索拉纳',   gate_pair: 'SOL_USDT',  gate_slug: 'solana',      cg_id: 'solana',          sort_order: 3,  enabled: 1 },
   { symbol: 'ABT',  name: '区块基石', gate_pair: 'ABT_USDT',  gate_slug: 'arcblock',    cg_id: 'arcblock',        sort_order: 4,  enabled: 1 },
   { symbol: 'BNB',  name: '币安币',   gate_pair: 'BNB_USDT',  gate_slug: 'bnb',         cg_id: 'binancecoin',     sort_order: 5,  enabled: 1 },
-  { symbol: 'ICX',  name: 'ICON',    gate_pair: 'ICX_USDT',  gate_slug: 'icon',        cg_id: 'icon',            sort_order: 6,  enabled: 1 },
-  { symbol: 'FIL',  name: '文件币',   gate_pair: 'FIL_USDT',  gate_slug: 'filecoinipfs',cg_id: 'filecoin',        sort_order: 7,  enabled: 1 },
-  { symbol: 'ATOM', name: '阿童木',   gate_pair: 'ATOM_USDT', gate_slug: 'cosmos-hub',  cg_id: 'cosmos',          sort_order: 8,  enabled: 1 },
-  { symbol: 'OP',   name: 'Optimism', gate_pair: 'OP_USDT',   gate_slug: 'optimism',    cg_id: 'optimism',        sort_order: 9,  enabled: 1 },
-  { symbol: 'GT',   name: 'Gate',    gate_pair: 'GT_USDT',   gate_slug: 'gate',        cg_id: 'gatechain-token', sort_order: 10, enabled: 1 },
-  { symbol: 'YGG',  name: 'Yield Guild Games', gate_pair: 'YGG_USDT',  gate_slug: 'yieldguildgames', cg_id: 'yield-guild-games', sort_order: 11, enabled: 1 },
-  { symbol: 'SAGA', name: 'Saga',              gate_pair: 'SAGA_USDT', gate_slug: 'saga',            cg_id: 'saga-2',            sort_order: 12, enabled: 1 },
+  { symbol: 'FIL',  name: '文件币',   gate_pair: 'FIL_USDT',  gate_slug: 'filecoinipfs',cg_id: 'filecoin',        sort_order: 6,  enabled: 1 },
+  { symbol: 'ATOM', name: '阿童木',   gate_pair: 'ATOM_USDT', gate_slug: 'cosmos-hub',  cg_id: 'cosmos',          sort_order: 7,  enabled: 1 },
+  { symbol: 'OP',   name: 'Optimism', gate_pair: 'OP_USDT',   gate_slug: 'optimism',    cg_id: 'optimism',        sort_order: 8,  enabled: 1 },
+  { symbol: 'GT',   name: 'Gate',    gate_pair: 'GT_USDT',   gate_slug: 'gate',        cg_id: 'gatechain-token', sort_order: 9, enabled: 1 },
+  { symbol: 'YGG',  name: 'Yield Guild Games', gate_pair: 'YGG_USDT',  gate_slug: 'yieldguildgames', cg_id: 'yield-guild-games', sort_order: 10, enabled: 1 },
+  { symbol: 'SAGA', name: 'Saga',              gate_pair: 'SAGA_USDT', gate_slug: 'saga',            cg_id: 'saga-2',            sort_order: 11, enabled: 1 },
 ];
 
 export function initDefaultCoins(): void {

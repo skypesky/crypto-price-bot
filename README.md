@@ -5,7 +5,7 @@
 ## 🚀 功能特性
 
 - **Web Dashboard**：账密登录，所有配置（币种、推送通道、调度规则、汇率、DoH 等）可视化编辑。
-- **多币种监控**：默认 BTC / ETH / USDT / SOL / ABT / BNB / ICX / FIL / ATOM / OP / GT，可在页面增删改、启停、拖拽排序。
+- **多币种监控**：默认 BTC / ETH / USDT / SOL / ABT / BNB / FIL / ATOM / OP / GT，可在页面增删改、启停、拖拽排序。
 - **技术指标**：MA7 / MA30 / MA90 / MA180 / MA365 + 7d / 30d / 90d / 180d / 1y 趋势。
 - **双语计价**：美元 + 人民币。
 - **定时推送**：cron 6 段（含秒）调度，支持时区。

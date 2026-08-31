@@ -93,7 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
  *  FIL 旧 'filecoin' 同样被劫持。新 slug 取自 gate.com 官方 trade 页脚。 */
 const GATE_SLUG_BY_SYMBOL: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
-  ABT: 'arcblock', BNB: 'bnb', ICX: 'icon', FIL: 'filecoinipfs',
+  ABT: 'arcblock', BNB: 'bnb', FIL: 'filecoinipfs',
   ATOM: 'cosmos-hub', OP: 'optimism', GT: 'gate',
   YGG: 'yieldguildgames', SAGA: 'saga',
 };

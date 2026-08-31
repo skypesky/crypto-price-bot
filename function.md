@@ -135,7 +135,7 @@
 - `gate_slug`：小写字母/数字/连字符，决定 gate.com 链接
 - `cg_id`：CoinGecko 的币种 ID，必填
 - `enabled` / `sort_order` 整数，0/1 语义
-- 首启若 coins 表为空，自动插入 11 个默认币种（BTC/ETH/USDT/SOL/ABT/BNB/ICX/FIL/ATOM/OP/GT）
+- 首启若 coins 表为空，自动插入 12 个默认币种（BTC/ETH/USDT/SOL/ABT/BNB/FIL/ATOM/OP/GT/YGG/SAGA，ICX 已移除）
 
 ### M4 — 系统设置模块 (P0)
 

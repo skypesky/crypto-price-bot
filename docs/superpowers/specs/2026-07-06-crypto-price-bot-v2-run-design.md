@@ -15,7 +15,7 @@ v2 主体代码（server + web + SQLite + croner + 飞书/TG 推送 + Web UI）�
 - 123 个单元测试通过（`vitest run`，server + web 共 15 个 spec 文件）
 - `tsc --noEmit` 双侧（`server/` 和 `web/`）exit=0
 - `.env` 已存在并填好 `FEISHU_WEBHOOK_URL`、`TG_BOT_TOKEN`、`TG_CHAT_ID`、`INIT_USERNAME`、`INIT_PASSWORD`、`DATABASE_PATH`
-- 默认 11 个币种（BTC/ETH/USDT/SOL/ABT/BNB/ICX/FIL/ATOM/OP/GT）首启自动入库
+- 默认 12 个币种（BTC/ETH/USDT/SOL/ABT/BNB/FIL/ATOM/OP/GT/YGG/SAGA，ICX 已移除）首启自动入库
 - Docker 镜像与 `docker-compose.yml` 已写好（多阶段、`tini`、`TZ=Asia/Shanghai`、`./data:/app/data`）
 
 但以下两项从未在真实环境端到端跑过：

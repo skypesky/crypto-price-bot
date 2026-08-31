@@ -81,7 +81,7 @@ describe('coin model', () => {
   it('initDefaultCoins + list', () => {
     coin.initDefaultCoins();
     const list = coin.listCoins();
-    expect(list.length).toBe(13);
+    expect(list.length).toBe(12);
     expect(list[0]?.symbol).toBe('BTC');
   });
 
