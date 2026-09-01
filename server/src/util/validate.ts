@@ -21,6 +21,7 @@ export const settingKeySchema = z.enum([
   'doh_bypass',
   'request_timeout_ms',
   'max_retries',
+  'alert_cooldown_hours',
 ]);
 
 export const settingsMapSchema = z.object({
@@ -36,6 +37,7 @@ export const settingsMapSchema = z.object({
   doh_bypass: z.array(z.string()).optional(),
   request_timeout_ms: z.number().int().positive().max(120_000).optional(),
   max_retries: z.number().int().min(0).max(5).optional(),
+  alert_cooldown_hours: z.number().int().min(0).max(720).optional(),
 }).strict();
 
 export const coinSchema = z.object({
@@ -46,6 +48,9 @@ export const coinSchema = z.object({
   cg_id: z.string().min(1).max(64),
   sort_order: z.number().int().min(0).default(0),
   enabled: z.boolean().default(true),
+  // 价格预警阈值（美元价，USDT 对价）。null/缺省 = 不设该方向预警。
+  alert_above: z.number().positive().nullable().optional(),
+  alert_below: z.number().positive().nullable().optional(),
 });
 
 export const coinUpdateSchema = coinSchema.partial();
@@ -67,6 +72,10 @@ export const passwordChangeSchema = z.object({
 export const resendSchema = z.object({
   channels: z.array(z.enum(['tg', 'feishu'])).min(1),
 });
+
+export const reportDeleteBatchSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1),
+}).strict();
 
 export function parseJson<T>(schema: z.ZodType<T>, raw: string): { ok: true; data: T } | { ok: false; error: string } {
   let parsed: unknown;

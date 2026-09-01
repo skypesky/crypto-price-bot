@@ -61,16 +61,21 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE TABLE IF NOT EXISTS coins (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  symbol      TEXT    UNIQUE NOT NULL,
-  name        TEXT    NOT NULL,
-  gate_pair   TEXT,
-  gate_slug   TEXT,
-  cg_id       TEXT    NOT NULL,
-  sort_order  INTEGER NOT NULL DEFAULT 0,
-  enabled     INTEGER NOT NULL DEFAULT 1,
-  created_at  INTEGER NOT NULL,
-  updated_at  INTEGER NOT NULL
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol         TEXT    UNIQUE NOT NULL,
+  name           TEXT    NOT NULL,
+  gate_pair      TEXT,
+  gate_slug      TEXT,
+  cg_id          TEXT    NOT NULL,
+  sort_order     INTEGER NOT NULL DEFAULT 0,
+  enabled        INTEGER NOT NULL DEFAULT 1,
+  alert_above    REAL,                 -- 突破该美元价时向飞书发一次提醒；NULL = 不设上限
+  alert_below    REAL,                 -- 跌破该美元价时向飞书发一次提醒；NULL = 不设下限
+  last_price     REAL,                 -- 上次 runTask 抓到的 last；NULL = 首次无穿越概念
+  last_alert_at  INTEGER NOT NULL DEFAULT 0,  -- 上次向飞书发阈值提醒的 ms 时间戳；0 = 未发过
+  last_alert_dir TEXT,                 -- 上次发提醒的方向：'above' / 'below' / NULL
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS reports (
@@ -102,8 +107,25 @@ function migrate(db: Database.Database): void {
   db.exec(SCHEMA);
   // 兼容 v2.0 之前没 gate_slug 列的 DB
   const cols = db.prepare(`PRAGMA table_info(coins)`).all() as Array<{ name: string }>;
-  if (!cols.some((c) => c.name === 'gate_slug')) {
+  const colNames = new Set(cols.map((c) => c.name));
+  if (!colNames.has('gate_slug')) {
     db.exec(`ALTER TABLE coins ADD COLUMN gate_slug TEXT`);
+  }
+  // 价格预警字段（独立 ALTER 以兼容 v2.0 之前没这些列的旧库）
+  if (!colNames.has('alert_above')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN alert_above REAL`);
+  }
+  if (!colNames.has('alert_below')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN alert_below REAL`);
+  }
+  if (!colNames.has('last_price')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN last_price REAL`);
+  }
+  if (!colNames.has('last_alert_at')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN last_alert_at INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!colNames.has('last_alert_dir')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN last_alert_dir TEXT`);
   }
   // 回填现有币种的 gate_slug（仅当为空时）
   const upd = db.prepare(`UPDATE coins SET gate_slug = ? WHERE symbol = ? AND (gate_slug IS NULL OR gate_slug = '')`);

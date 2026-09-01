@@ -18,6 +18,7 @@ export interface Config {
   doh_bypass: string[];
   request_timeout_ms: number;
   max_retries: number;
+  alert_cooldown_hours: number;
 }
 
 const ENV_MAP: Partial<Record<keyof Config, string>> = {
@@ -81,6 +82,7 @@ export function loadConfig(): Config {
     doh_bypass: coerceStringArray(dbSettings.doh_bypass, DEFAULT_SETTINGS.doh_bypass as string[]),
     request_timeout_ms: coerceNumber(dbSettings.request_timeout_ms, DEFAULT_SETTINGS.request_timeout_ms as number),
     max_retries: coerceNumber(dbSettings.max_retries, DEFAULT_SETTINGS.max_retries as number),
+    alert_cooldown_hours: coerceNumber(dbSettings.alert_cooldown_hours, DEFAULT_SETTINGS.alert_cooldown_hours as number),
   };
   _config = cfg;
   return cfg;

@@ -23,6 +23,8 @@ export function registerCoins(r: Router): void {
       cg_id: parsed.data.cg_id,
       sort_order: parsed.data.sort_order ?? 0,
       enabled: parsed.data.enabled ? 1 : 0,
+      alert_above: parsed.data.alert_above ?? null,
+      alert_below: parsed.data.alert_below ?? null,
     });
       sendOk(ctx.res, c);
     } catch (err) {
@@ -45,6 +47,18 @@ export function registerCoins(r: Router): void {
     if (parsed.data.cg_id !== undefined) patch.cg_id = parsed.data.cg_id;
     if (parsed.data.sort_order !== undefined) patch.sort_order = parsed.data.sort_order;
     if (parsed.data.enabled !== undefined) patch.enabled = parsed.data.enabled ? 1 : 0;
+    if (parsed.data.alert_above !== undefined) {
+      patch.alert_above = parsed.data.alert_above;
+      // 用户主动调整 above 阈值：清除 above 方向的冷却，
+      // 下次首次穿越会重新触发（不重置 dir，避免 if 之前的 above 冷却泄漏到 below）
+      patch.last_alert_at = 0;
+      patch.last_alert_dir = null;
+    }
+    if (parsed.data.alert_below !== undefined) {
+      patch.alert_below = parsed.data.alert_below;
+      patch.last_alert_at = 0;
+      patch.last_alert_dir = null;
+    }
     const updated = updateCoin(id, patch);
     if (!updated) throw new NotFoundError(`coin ${id} not found`);
     sendOk(ctx.res, updated);

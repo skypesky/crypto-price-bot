@@ -15,6 +15,7 @@ interface Settings {
   doh_bypass: string;
   request_timeout_ms: number;
   max_retries: number;
+  alert_cooldown_hours: number;
 }
 
 export function SettingsPage() {
@@ -125,6 +126,20 @@ export function SettingsPage() {
                     <InputNumber min={0} max={5} />
                   </Form.Item>
                 </>
+              ),
+            },
+            {
+              key: 'alert',
+              label: '价格预警',
+              children: (
+                <Form.Item
+                  name="alert_cooldown_hours"
+                  label={<Tooltip title="同方向的阈值提醒冷却时间（小时）。在币种页修改阈值会自动重置冷却。设为 0 表示每次穿越都提醒。">预警冷却时长（小时）</Tooltip>}
+                  extra="冷却期内同一方向（如「突破上限」）不重复推送。在「币种」页改阈值会自动清冷却。"
+                  rules={[{ required: true, type: 'number', min: 0, max: 720 }]}
+                >
+                  <InputNumber min={0} max={720} step={1} addonAfter="小时" style={{ width: 200 }} />
+                </Form.Item>
               ),
             },
           ]}

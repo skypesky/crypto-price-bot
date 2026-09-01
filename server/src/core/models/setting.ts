@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS: Record<string, SettingValue> = {
   doh_bypass: ['1.1.1.1', 'one.one.one.one', 'cloudflare-dns.com'],
   request_timeout_ms: 15000,
   max_retries: 1,
+  alert_cooldown_hours: 24,  // 同方向阈值提醒冷却（小时），0 = 每次都发
 };
 
 export function initDefaults(): void {

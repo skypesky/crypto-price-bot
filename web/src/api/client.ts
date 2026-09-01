@@ -60,6 +60,11 @@ export interface Coin {
   cg_id: string;
   sort_order: number;
   enabled: number;
+  alert_above: number | null;
+  alert_below: number | null;
+  last_price: number | null;
+  last_alert_at: number;
+  last_alert_dir: 'above' | 'below' | null;
   created_at: number;
   updated_at: number;
 }
