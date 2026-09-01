@@ -77,6 +77,7 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
   }
   msg += `⏰ 更新时间: ${now.toLocaleString('zh-CN', { timeZone: timezone })}`;
   msg += `\n⚠️ MA（移动平均线）仅供参考，不构成投资建议`;
+  msg += `\n数据展示以 CoinGecko 数据为准`;
   return msg;
 }
 
