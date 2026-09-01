@@ -110,6 +110,10 @@ function migrate(db: Database.Database): void {
   for (const [symbol, slug] of Object.entries(GATE_SLUG_BY_SYMBOL)) {
     upd.run(slug, symbol);
   }
+  // 数据迁移：ICX 已从默认币种与 slug 映射中移除；清理存量数据，
+  // 这样旧库初始化过的实例在下次启动时也会停止监控 ICX。
+  // 仅在 ICX 存在时执行（幂等），避免误删用户后续手动添加的 ICX。
+  db.prepare(`DELETE FROM coins WHERE symbol = 'ICX'`).run();
 }
 
 export function pingDb(): boolean {
