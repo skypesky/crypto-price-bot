@@ -94,13 +94,20 @@ CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
 `;
 
 /** 旧币种 → gate.com slug（用于现有 DB 回填 gate_slug）。
- *  注意 BNB / FIL 的 slug 已被 gate.com 改路由：BNB 旧 'binancecoin' 现在会跳到狗头页；
- *  FIL 旧 'filecoin' 同样被劫持。新 slug 取自 gate.com 官方 trade 页脚。 */
+ *  注意 BNB 的 slug 已被 gate.com 改路由：旧 'binancecoin' 现在会跳到狗头页。
+ *  新 slug 取自 gate.com 官方 trade 页脚。 */
 const GATE_SLUG_BY_SYMBOL: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
-  ABT: 'arcblock', BNB: 'bnb', FIL: 'filecoinipfs',
-  ATOM: 'cosmos-hub', OP: 'optimism', GT: 'gate',
-  YGG: 'yieldguildgames', SAGA: 'saga',
+  ABT: 'arcblock', BNB: 'bnb',
+  GT: 'gate', YGG: 'yieldguildgames', SAGA: 'saga',
+};
+
+/** 已知坏 slug → 新 slug。
+ *  一些币的 slug 被 gate.com 改路由后，旧 slug 会被劫持到狗头页。
+ *  仅在此处白名单的 (symbol, oldSlug) 组合会被强制覆盖为新 slug，
+ *  其它任何用户自定义 slug 都不会被触碰。 */
+const KNOWN_BAD_GATE_SLUGS: Record<string, Record<string, string>> = {
+  BNB: { binancecoin: 'bnb' },
 };
 
 function migrate(db: Database.Database): void {
@@ -132,10 +139,27 @@ function migrate(db: Database.Database): void {
   for (const [symbol, slug] of Object.entries(GATE_SLUG_BY_SYMBOL)) {
     upd.run(slug, symbol);
   }
+  // 修复已知坏 slug → 新 slug。
+  // 只对白名单里的 (symbol, oldSlug) 组合生效：用户手动编辑过的 slug 不会被覆盖，
+  // 避免误改用户对其它币种的自定义。
+  // WHY 独立于 GATE_SLUG_BY_SYMBOL：前者只在 NULL/'' 时回填，无法修复已经被改成坏 slug 的存量数据
+  // （如 web UI 编辑时填入了 'binancecoin'）。这条迁移保证坏 slug 在下次启动时被纠正。
+  const fixBad = db.prepare(`UPDATE coins SET gate_slug = ? WHERE symbol = ? AND gate_slug = ?`);
+  for (const [symbol, mapping] of Object.entries(KNOWN_BAD_GATE_SLUGS)) {
+    for (const [oldSlug, newSlug] of Object.entries(mapping)) {
+      fixBad.run(newSlug, symbol, oldSlug);
+    }
+  }
   // 数据迁移：ICX 已从默认币种与 slug 映射中移除；清理存量数据，
   // 这样旧库初始化过的实例在下次启动时也会停止监控 ICX。
   // 仅在 ICX 存在时执行（幂等），避免误删用户后续手动添加的 ICX。
   db.prepare(`DELETE FROM coins WHERE symbol = 'ICX'`).run();
+  // 数据迁移：FIL / ATOM / OP 已从默认币种与 slug 映射中移除；清理存量数据，
+  // 这样旧库初始化过的实例在下次启动时也会停止监控这三个币。
+  // 仅在对应 symbol 存在时执行（幂等），避免误删用户后续手动添加回来的同名币。
+  const removedSymbols = ['FIL', 'ATOM', 'OP'];
+  const placeholders = removedSymbols.map(() => '?').join(',');
+  db.prepare(`DELETE FROM coins WHERE symbol IN (${placeholders})`).run(...removedSymbols);
 }
 
 export function pingDb(): boolean {

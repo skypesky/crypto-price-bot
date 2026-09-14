@@ -60,13 +60,13 @@ export async function runTask(triggeredBy: 'cron' | 'manual' | 'test' | 'resend'
   const okCount = results.filter(r => r.ticker !== null).length;
   const success = okCount > 0;
 
-  // 实时汇率（带 1h 缓存，失败回落到 settings.usdt_to_cny）
+  // 实时汇率（带 1h 缓存，失败回落到 FALLBACK_USDT_TO_CNY 常量）
   const fx = await getUsdtToCnyRate();
   log.info(`usdt→cny rate: ${fx.rate} (${fx.source})`);
 
   // 通过 GITHUB_ACTIONS 区分本地 / CI，标签会展示在报告标题里
   const trigger: 'local' | 'ci' = process.env['GITHUB_ACTIONS'] === 'true' ? 'ci' : 'local';
-  const message = buildMessage(results, { usdtToCny: fx.rate, trigger });
+  const message = buildMessage(results, { usdtToCny: fx.rate, trigger, fxSource: fx.source });
   log.info(`results: ${okCount}/${coins.length} ok`);
 
   // 并行推送

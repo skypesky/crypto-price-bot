@@ -120,6 +120,41 @@ describe('buildMessage', () => {
     expect(msg).toContain('数据获取失败');
   });
 
+  it('fxSource=fallback 时标题加 ⚠️汇率兜底 标记', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 6.8, timezone: 'UTC', now: new Date('2026-09-14T00:00:00Z'), fxSource: 'fallback' });
+    expect(msg).toContain('⚠️汇率兜底');
+    expect(msg).toContain('from local ⚠️汇率兜底');
+  });
+
+  it('fxSource=live 时不加标记', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 6.71, timezone: 'UTC', now: new Date('2026-09-14T00:00:00Z'), fxSource: 'live' });
+    expect(msg).not.toContain('⚠️汇率兜底');
+    expect(msg).toContain('from local');
+  });
+
+  it('不传 fxSource 时不加标记（兼容历史调用）', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 6.71, timezone: 'UTC', now: new Date('2026-09-14T00:00:00Z') });
+    expect(msg).not.toContain('⚠️汇率兜底');
+  });
+
   it('稳定币（无 gate pair）', () => {
     const r: CoinResult = {
       coin: fakeCoin({ symbol: 'USDT', name: '泰达币', gate_pair: null, cg_id: 'tether' }),

@@ -14,7 +14,6 @@ export const settingKeySchema = z.enum([
   'feishu_webhook_url',
   'timezone',
   'schedule_rule',
-  'usdt_to_cny',
   'ua',
   'doh_enabled',
   'doh_server',
@@ -30,14 +29,13 @@ export const settingsMapSchema = z.object({
   feishu_webhook_url: z.union([z.string().url(), z.string().length(0), z.null()]).optional(),
   timezone: z.string().min(1).optional(),
   schedule_rule: z.string().regex(/^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+$/, 'must be 6-field cron').optional(),
-  usdt_to_cny: z.number().positive().optional(),
   ua: z.string().min(1).optional(),
   doh_enabled: z.boolean().optional(),
   doh_server: z.string().min(1).optional(),
   doh_bypass: z.array(z.string()).optional(),
-  request_timeout_ms: z.number().int().positive().max(120_000).optional(),
-  max_retries: z.number().int().min(0).max(5).optional(),
-  alert_cooldown_hours: z.number().int().min(0).max(720).optional(),
+  request_timeout_ms: z.coerce.number().int().positive().max(120_000).optional(),
+  max_retries: z.coerce.number().int().min(0).max(5).optional(),
+  alert_cooldown_hours: z.coerce.number().int().min(0).max(720).optional(),
 }).strict();
 
 export const coinSchema = z.object({

@@ -13,7 +13,6 @@ describe('settingsMapSchema', () => {
   it('接受完整对象', () => {
     const r = settingsMapSchema.safeParse({
       tg_bot_token: 'abc',
-      usdt_to_cny: 7.2,
       doh_enabled: true,
     });
     expect(r.success).toBe(true);
@@ -24,11 +23,6 @@ describe('settingsMapSchema', () => {
     expect(r.success).toBe(false);
   });
 
-  it('usdt_to_cny 必须为正数', () => {
-    expect(settingsMapSchema.safeParse({ usdt_to_cny: -1 }).success).toBe(false);
-    expect(settingsMapSchema.safeParse({ usdt_to_cny: 0 }).success).toBe(false);
-  });
-
   it('schedule_rule 必须是 6 段 cron', () => {
     expect(settingsMapSchema.safeParse({ schedule_rule: '0 */30 * * * *' }).success).toBe(true);
     expect(settingsMapSchema.safeParse({ schedule_rule: '0 0 9 * *' }).success).toBe(false);
@@ -36,6 +30,12 @@ describe('settingsMapSchema', () => {
 
   it('request_timeout_ms 限制最大 120s', () => {
     expect(settingsMapSchema.safeParse({ request_timeout_ms: 200_000 }).success).toBe(false);
+  });
+
+  it('数字字段接受 string（前端 antd InputNumber 兼容）', () => {
+    expect(settingsMapSchema.safeParse({ request_timeout_ms: '15000' }).success).toBe(true);
+    expect(settingsMapSchema.safeParse({ max_retries: '1' }).success).toBe(true);
+    expect(settingsMapSchema.safeParse({ alert_cooldown_hours: '24' }).success).toBe(true);
   });
 });
 

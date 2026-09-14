@@ -67,13 +67,28 @@ describe('setting model', () => {
     setting.initDefaults();
     const all = setting.getAllSettings();
     expect(all.timezone).toBe('Asia/Shanghai');
-    expect(all.schedule_rule).toBe('0 */30 * * * *');
+    expect(all.schedule_rule).toBe('0 */10 * * * *');
   });
 
   it('setMany 覆盖', () => {
-    setting.setManySettings({ timezone: 'UTC', usdt_to_cny: 7.5 });
+    setting.setManySettings({ timezone: 'UTC', max_retries: 3 });
     expect(setting.getSetting('timezone')).toBe('UTC');
-    expect(setting.getSetting('usdt_to_cny')).toBe(7.5);
+    expect(setting.getSetting('max_retries')).toBe(3);
+  });
+
+  it('initDefaults 迁移：存量 schedule_rule=旧的 */30 自动升级到 */10', () => {
+    // 模拟存量 DB：schedule_rule 是旧默认值
+    setting.setManySettings({ schedule_rule: '0 */30 * * * *' });
+    expect(setting.getSetting('schedule_rule')).toBe('0 */30 * * * *');
+    // 重跑 initDefaults 应自动迁移
+    setting.initDefaults();
+    expect(setting.getSetting('schedule_rule')).toBe('0 */10 * * * *');
+  });
+
+  it('initDefaults 迁移：用户自定义值不被覆盖', () => {
+    setting.setManySettings({ schedule_rule: '0 0 9 * * *' });
+    setting.initDefaults();
+    expect(setting.getSetting('schedule_rule')).toBe('0 0 9 * * *');
   });
 });
 
@@ -81,23 +96,20 @@ describe('coin model', () => {
   it('initDefaultCoins + list', () => {
     coin.initDefaultCoins();
     const list = coin.listCoins();
-    expect(list.length).toBe(12);
+    expect(list.length).toBe(9);
     expect(list[0]?.symbol).toBe('BTC');
   });
 
   // gate.com slug 回归测试：
   // - BNB 旧 slug 'binancecoin' 已被 gate.com 改路由，现在会劫持到狗头页面。新 slug 必须是 'bnb'。
-  // - FIL 旧 slug 'filecoin' 同样被劫持，新 slug 必须是 'filecoinipfs'（在 /zh/trade/FIL_USDT 页脚可找到官方链接）。
   it.each([
     ['BNB', 'bnb'],
-    ['FIL', 'filecoinipfs'],
   ])('%s 默认 gate_slug 是 %s（不是已失效的旧 slug）', (symbol, expectedSlug) => {
     const found = coin.DEFAULT_COINS.find((c) => c.symbol === symbol);
     expect(found).toBeDefined();
     expect(found!.gate_slug).toBe(expectedSlug);
     // 反向断言：防止回退到已知坏 slug
     expect(found!.gate_slug).not.toBe('binancecoin');
-    expect(found!.gate_slug).not.toBe('filecoin');
   });
 
   // 新增监控币种：YGG (Yield Guild Games) 和 SAGA

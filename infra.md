@@ -12,7 +12,7 @@
 | 名称 | crypto-price-bot |
 | 版本 | v2.0.0 |
 | 类型 | 定时数据采集 + 多通道推送 + Web 管理后台 |
-| 核心场景 | 加密货币价格监控，每 30 分钟拉一次 11 个币种的价格/K线/汇率，推送到 Telegram / 飞书；同时通过 Web Dashboard 管理所有配置 |
+| 核心场景 | 加密货币价格监控，每 10 分钟拉一次 9 个币种的价格/K线/汇率，推送到 Telegram / 飞书；同时通过 Web Dashboard 管理所有配置 |
 | 目标用户 | 个人 / 小团队加密资产持有者 |
 | 部署形态 | Docker（推荐）/ Native（开发）/ GitHub Actions（兜底） |
 | 主语言 | TypeScript 5.6（前后端共用） |
@@ -20,7 +20,7 @@
 **核心特性（README 自述）：**
 
 - Web Dashboard：账密登录，可视化编辑所有配置
-- 多币种监控：BTC / ETH / USDT / SOL / ABT / BNB / FIL / ATOM / OP / GT
+- 多币种监控：BTC / ETH / USDT / SOL / ABT / BNB / GT / YGG / SAGA
 - 技术指标：MA7/30/90/180/365 + 7d/30d/90d/180d/1y 趋势
 - 双语计价：USD + CNY（汇率走 CoinGecko）
 - 定时推送：cron 6 段（支持秒 + 时区）
@@ -206,7 +206,7 @@ crypto-price-bot/
 | 模块 | 功能 | 技术实现 | 数据存储 | 缓存策略 |
 |------|------|----------|----------|----------|
 | 定时调度 | 每 30min 跑一次任务 | `core/scheduler.ts` + `croner` | - | 内存中持有 `_job` 引用 |
-| 价格获取 | 11 个币种 × ticker + klines | `core/gate/{ticker,klines}.ts` | - | 无（每次重新拉） |
+| 价格获取 | 9 个币种 × ticker + klines | `core/gate/{ticker,klines}.ts` | - | 无（每次重新拉） |
 | 汇率获取 | USDT → CNY | `core/gate/fx.ts` (CoinGecko) | - | 进程内 1h TTL（`fx.ts:10`） |
 | 指标计算 | MA + 趋势 | `core/indicators/{ma,trend}.ts` | - | 无 |
 | 报告渲染 | Markdown / 平台适配 | `core/message/{builder,formatter}.ts` | `reports.message` 落库 | 无 |
@@ -379,7 +379,7 @@ node dist/index.js  （GITHUB_ACTIONS=true）
 | 指标 | 期望值 | 备注 |
 |------|--------|------|
 | 启动时间 | < 2s | 无重型 init，主要是 SQLite migrate + 11 行 seed |
-| 单次 runTask 耗时 | 2~5s | 11 个币种并行 + 汇率 + 2 推送通道 |
+| 单次 runTask 耗时 | 2~5s | 9 个币种并行 + 汇率 + 2 推送通道 |
 | API 响应时间 | < 50ms（p95） | 全部走 SQLite，无远程 IO |
 | 内存占用 | < 100MB | Node + undici dispatcher cache + SQLite WAL |
 | 镜像大小 | < 200MB | multi-stage + alpine + prune devDeps |

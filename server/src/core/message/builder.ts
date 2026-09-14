@@ -2,6 +2,7 @@ import type { Coin } from '../models/coin.js';
 import { calculateMA } from '../indicators/ma.js';
 import { calculateTrend } from '../indicators/trend.js';
 import { getConfig } from '../config.js';
+import { FALLBACK_USDT_TO_CNY } from '../gate/fx.js';
 
 export interface CoinResult {
   coin: Coin;
@@ -40,13 +41,16 @@ function formatMA(ma: number | null, current: number, usdtToCny: number): string
   return `➡️ ${usdStr} ${cnyStr}`;
 }
 
-export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date; trigger?: 'local' | 'ci' }): string {
+export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date; trigger?: 'local' | 'ci'; fxSource?: 'live' | 'cache' | 'fallback' }): string {
   const cfg = getConfig();
-  const usdtToCny = ctx?.usdtToCny ?? cfg.usdt_to_cny;
+  const usdtToCny = ctx?.usdtToCny ?? FALLBACK_USDT_TO_CNY;
   const timezone = ctx?.timezone ?? cfg.timezone;
   const now = ctx?.now ?? new Date();
   const trigger = ctx?.trigger ?? 'local';
-  let msg = `📊 *加密货币价格报告 (含技术指标) from ${trigger}*\n\n`;
+  const fxSource = ctx?.fxSource;
+  // fallback 时在标题末尾加标记，让用户知道人民币汇率不是实时的
+  const fxMarker = fxSource === 'fallback' ? ' ⚠️汇率兜底' : '';
+  let msg = `📊 *加密货币价格报告 (含技术指标) from ${trigger}${fxMarker}*\n\n`;
   for (const r of results) {
     const { coin, ticker, indicators } = r;
     if (!ticker) {

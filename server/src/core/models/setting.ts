@@ -13,8 +13,7 @@ export const DEFAULT_SETTINGS: Record<string, SettingValue> = {
   tg_chat_id: null,
   feishu_webhook_url: null,
   timezone: 'Asia/Shanghai',
-  schedule_rule: '0 */30 * * * *',
-  usdt_to_cny: 7.20,
+  schedule_rule: '0 */10 * * * *',
   ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
   doh_enabled: true,
   doh_server: '1.1.1.1',
@@ -34,6 +33,23 @@ export function initDefaults(): void {
     }
   });
   tx(Object.entries(DEFAULT_SETTINGS));
+  // 迁移：删除已废弃的设置项（如 usdt_to_cny）
+  const deprecated = ['usdt_to_cny'];
+  if (deprecated.length > 0) {
+    const placeholders = deprecated.map(() => '?').join(',');
+    db.prepare(`DELETE FROM settings WHERE key IN (${placeholders})`).run(...deprecated);
+  }
+  // 迁移：默认值变更 — 若存量仍是旧默认值，自动升级到新默认值；用户自定义值不动
+  const valueMigrations: Array<{ key: string; from: SettingValue; to: SettingValue }> = [
+    { key: 'schedule_rule', from: '0 */30 * * * *', to: DEFAULT_SETTINGS.schedule_rule },
+  ];
+  const updateStmt = db.prepare(
+    'UPDATE settings SET value = ?, updated_at = ? WHERE key = ? AND value = ?',
+  );
+  const migrateNow = Date.now();
+  for (const m of valueMigrations) {
+    updateStmt.run(JSON.stringify(m.to), migrateNow, m.key, JSON.stringify(m.from));
+  }
 }
 
 export function getAllSettings(): Record<string, SettingValue> {

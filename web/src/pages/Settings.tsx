@@ -8,7 +8,6 @@ interface Settings {
   feishu_webhook_url: string | null;
   timezone: string;
   schedule_rule: string;
-  usdt_to_cny: number;
   ua: string;
   doh_enabled: boolean;
   doh_server: string;
@@ -86,10 +85,7 @@ export function SettingsPage() {
                     <Input />
                   </Form.Item>
                   <Form.Item name="schedule_rule" label={<Tooltip title="6 段 cron（含秒）：秒 分 时 日 月 周">调度规则（cron 6 段）</Tooltip>}>
-                    <Input placeholder="0 */30 * * * *" />
-                  </Form.Item>
-                  <Form.Item name="usdt_to_cny" label={<Tooltip title="1 USDT 兑人民币汇率">USDT → CNY 汇率</Tooltip>}>
-                    <InputNumber min={0.1} step={0.01} style={{ width: 200 }} />
+                    <Input placeholder="0 */10 * * * *" />
                   </Form.Item>
                 </>
               ),

@@ -11,7 +11,6 @@ export interface Config {
   feishu_webhook_url: string | null;
   timezone: string;
   schedule_rule: string;
-  usdt_to_cny: number;
   ua: string;
   doh_enabled: boolean;
   doh_server: string;
@@ -75,7 +74,6 @@ export function loadConfig(): Config {
     feishu_webhook_url: (dbSettings.feishu_webhook_url as string | null) ?? null,
     timezone: (dbSettings.timezone as string) ?? DEFAULT_SETTINGS.timezone as string,
     schedule_rule: (dbSettings.schedule_rule as string) ?? DEFAULT_SETTINGS.schedule_rule as string,
-    usdt_to_cny: coerceNumber(dbSettings.usdt_to_cny, DEFAULT_SETTINGS.usdt_to_cny as number),
     ua: (dbSettings.ua as string) ?? DEFAULT_SETTINGS.ua as string,
     doh_enabled: coerceBoolean(dbSettings.doh_enabled, DEFAULT_SETTINGS.doh_enabled as boolean),
     doh_server: (dbSettings.doh_server as string) ?? DEFAULT_SETTINGS.doh_server as string,

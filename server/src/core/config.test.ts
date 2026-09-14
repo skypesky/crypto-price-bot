@@ -29,8 +29,7 @@ describe('config', () => {
   it('loadConfig 使用默认', () => {
     const c = loadConfig();
     expect(c.timezone).toBe('Asia/Shanghai');
-    expect(c.schedule_rule).toBe('0 */30 * * * *');
-    expect(c.usdt_to_cny).toBe(7.20);
+    expect(c.schedule_rule).toBe('0 */10 * * * *');
   });
 
   it('DB 写入后 reloadConfig 拿到新值', () => {
@@ -60,9 +59,9 @@ describe('config', () => {
   });
 
   it('数字/布尔/数组字段类型正确', () => {
-    setManySettings({ usdt_to_cny: 7.5, doh_enabled: false, doh_bypass: ['a.com', 'b.com'] });
+    setManySettings({ doh_enabled: false, doh_bypass: ['a.com', 'b.com'], max_retries: 3 });
     const c = loadConfig();
-    expect(c.usdt_to_cny).toBe(7.5);
+    expect(c.max_retries).toBe(3);
     expect(c.doh_enabled).toBe(false);
     expect(c.doh_bypass).toEqual(['a.com', 'b.com']);
   });
