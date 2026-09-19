@@ -19,6 +19,20 @@ export function isBotConfigured(cfg: Config): boolean {
   );
 }
 
+/**
+ * WS 最小配置判定：仅需 app_id + app_secret + default_receive_id + id_type。
+ * WS 模式不依赖 encrypt_key / verification_token（SDK 在非加密事件流下可选）。
+ * 任一缺失 → 不启动 WS 长连接。
+ */
+export function isBotMinimalConfig(cfg: Config): boolean {
+  return Boolean(
+    cfg.feishu_app_id &&
+    cfg.feishu_app_secret &&
+    cfg.feishu_default_receive_id &&
+    cfg.feishu_default_receive_id_type
+  );
+}
+
 export interface FeishuCardPayload {
   msg_type: 'text' | 'interactive';
   content?: { text: string };

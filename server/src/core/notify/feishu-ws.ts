@@ -1,6 +1,6 @@
 import { WSClient, EventDispatcher } from '@larksuiteoapi/node-sdk';
 import { getConfig } from '../config.js';
-import { isBotConfigured } from './feishu-bot.js';
+import { isBotMinimalConfig } from './feishu-bot.js';
 import { runTaskForUser } from '../task-user.js';
 import { createLogger } from '../../util/logger.js';
 
@@ -22,7 +22,7 @@ let _started = false;
 export function startFeishuWs(): void {
   if (_started) return;
   const cfg = getConfig();
-  if (!isBotConfigured(cfg)) {
+  if (!isBotMinimalConfig(cfg)) {
     log.info('Bot not configured, skipping feishu WS start');
     return;
   }

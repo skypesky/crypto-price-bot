@@ -16,7 +16,7 @@ vi.mock('@larksuiteoapi/node-sdk', () => {
   };
 });
 
-import { isBotConfigured, sendViaBot } from './feishu-bot.js';
+import { isBotConfigured, isBotMinimalConfig, sendViaBot } from './feishu-bot.js';
 import type { Config } from '../config.js';
 
 const baseCfg = (): Config => ({
@@ -81,6 +81,35 @@ describe('isBotConfigured', () => {
     // cast through unknown to force-set null in test only
     (cfg as unknown as { feishu_default_receive_id_type: null }).feishu_default_receive_id_type = null;
     expect(isBotConfigured(cfg)).toBe(false);
+  });
+});
+
+describe('isBotMinimalConfig (WS minimum)', () => {
+  it('WS 最小配置（仅 app_id/secret/receive_id/id_type）→ true（不依赖 encrypt_key/token）', () => {
+    const cfg = baseCfg();
+    cfg.feishu_encrypt_key = null;
+    cfg.feishu_verification_token = null;
+    expect(isBotMinimalConfig(cfg)).toBe(true);
+  });
+
+  it('encrypt_key 和 verification_token 都缺失但其余字段齐全 → true', () => {
+    const cfg = baseCfg();
+    cfg.feishu_encrypt_key = null;
+    cfg.feishu_verification_token = null;
+    expect(isBotMinimalConfig(cfg)).toBe(true);
+    expect(isBotConfigured(cfg)).toBe(false);
+  });
+
+  it('app_id 缺失 → false', () => {
+    const cfg = baseCfg();
+    cfg.feishu_app_id = null;
+    expect(isBotMinimalConfig(cfg)).toBe(false);
+  });
+
+  it('default_receive_id 缺失 → false', () => {
+    const cfg = baseCfg();
+    cfg.feishu_default_receive_id = null;
+    expect(isBotMinimalConfig(cfg)).toBe(false);
   });
 });
 

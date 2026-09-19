@@ -43,15 +43,18 @@ vi.mock('../config.js', () => ({
   getConfig: vi.fn(() => ({
     feishu_app_id: 'cli_test',
     feishu_app_secret: 'sec',
-    feishu_encrypt_key: 'ek',
-    feishu_verification_token: 'vt',
+    // WS 模式下不需要 encrypt_key / verification_token；
+    // 配置里没有这两个字段，证明 WS 路径不依赖它们。
+    feishu_encrypt_key: null,
+    feishu_verification_token: null,
     feishu_default_receive_id: 'oc_x',
     feishu_default_receive_id_type: 'chat_id',
   })),
 }));
 
 vi.mock('./feishu-bot.js', () => ({
-  isBotConfigured: vi.fn(() => true),
+  isBotConfigured: vi.fn(() => false),
+  isBotMinimalConfig: vi.fn(() => true),
 }));
 
 vi.mock('../task-user.js', () => ({
@@ -59,17 +62,17 @@ vi.mock('../task-user.js', () => ({
 }));
 
 import { startFeishuWs, _resetFeishuWsForTests } from './feishu-ws.js';
-import { isBotConfigured } from './feishu-bot.js';
+import { isBotMinimalConfig } from './feishu-bot.js';
 import { runTaskForUser } from '../task-user.js';
 
-const mockIsBotConfigured = isBotConfigured as unknown as ReturnType<typeof vi.fn>;
+const mockIsBotMinimalConfig = isBotMinimalConfig as unknown as ReturnType<typeof vi.fn>;
 const mockRunTaskForUser = runTaskForUser as unknown as ReturnType<typeof vi.fn>;
 
 describe('startFeishuWs', () => {
   beforeEach(() => {
     _resetFeishuWsForTests();
     vi.clearAllMocks();
-    mockIsBotConfigured.mockReturnValue(true);
+    mockIsBotMinimalConfig.mockReturnValue(true);
     mockRunTaskForUser.mockResolvedValue({ ok: true });
   });
 
@@ -84,8 +87,8 @@ describe('startFeishuWs', () => {
     expect(startArg?.eventDispatcher).toBeDefined();
   });
 
-  it('Bot 未配置 → 跳过，不创建 WSClient', () => {
-    mockIsBotConfigured.mockReturnValue(false);
+  it('Bot 未配置（缺 app_id/app_secret） → 跳过，不创建 WSClient', () => {
+    mockIsBotMinimalConfig.mockReturnValue(false);
     startFeishuWs();
     expect(mockWSClientCtor).not.toHaveBeenCalled();
     expect(mockDispatcherCtor).not.toHaveBeenCalled();
