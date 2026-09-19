@@ -49,6 +49,7 @@ import { startScheduler, stopScheduler } from './core/scheduler.js';
 import { runTask } from './core/task.js';
 import { createUser, countUsers } from './core/models/user.js';
 import { disposeHttp } from './util/http.js';
+import { startFeishuWs } from './core/notify/feishu-ws.js';
 
 const log = createLogger({ isTTY: process.stdout.isTTY ?? false }).child('main');
 
@@ -113,6 +114,9 @@ async function bootstrap(): Promise<void> {
   registerReports(app.router);
   registerTask(app.router);
   registerLogs(app.router);
+
+  // 启动飞书 Bot 长连接监听（如果 Bot 已配置）
+  startFeishuWs();
 
   // 7. 启动 server
   const { server, close: closeHttp } = await listen(app, {
