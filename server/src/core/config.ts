@@ -9,6 +9,12 @@ export interface Config {
   tg_bot_token: string | null;
   tg_chat_id: string | null;
   feishu_webhook_url: string | null;
+  feishu_app_id: string | null;
+  feishu_app_secret: string | null;
+  feishu_encrypt_key: string | null;
+  feishu_verification_token: string | null;
+  feishu_default_receive_id: string | null;
+  feishu_default_receive_id_type: 'chat_id' | 'open_id' | 'union_id' | 'email';
   timezone: string;
   schedule_rule: string;
   ua: string;
@@ -24,6 +30,12 @@ const ENV_MAP: Partial<Record<keyof Config, string>> = {
   tg_bot_token: 'TG_BOT_TOKEN',
   tg_chat_id: 'TG_CHAT_ID',
   feishu_webhook_url: 'FEISHU_WEBHOOK_URL',
+  feishu_app_id: 'FEISHU_APP_ID',
+  feishu_app_secret: 'FEISHU_APP_SECRET',
+  feishu_encrypt_key: 'FEISHU_ENCRYPT_KEY',
+  feishu_verification_token: 'FEISHU_VERIFICATION_TOKEN',
+  feishu_default_receive_id: 'FEISHU_DEFAULT_RECEIVE_ID',
+  feishu_default_receive_id_type: 'FEISHU_DEFAULT_RECEIVE_ID_TYPE',
   timezone: 'TIMEZONE',
   ua: 'CUSTOM_USER_AGENT',
 };
@@ -72,6 +84,16 @@ export function loadConfig(): Config {
     tg_bot_token: (dbSettings.tg_bot_token as string | null) ?? null,
     tg_chat_id: (dbSettings.tg_chat_id as string | null) ?? null,
     feishu_webhook_url: (dbSettings.feishu_webhook_url as string | null) ?? null,
+    feishu_app_id: (dbSettings.feishu_app_id as string | null) ?? null,
+    feishu_app_secret: (dbSettings.feishu_app_secret as string | null) ?? null,
+    feishu_encrypt_key: (dbSettings.feishu_encrypt_key as string | null) ?? null,
+    feishu_verification_token: (dbSettings.feishu_verification_token as string | null) ?? null,
+    feishu_default_receive_id: (dbSettings.feishu_default_receive_id as string | null) ?? null,
+    feishu_default_receive_id_type: ((): 'chat_id' | 'open_id' | 'union_id' | 'email' => {
+      const v = dbSettings.feishu_default_receive_id_type;
+      if (v === 'chat_id' || v === 'open_id' || v === 'union_id' || v === 'email') return v;
+      return 'chat_id';
+    })(),
     timezone: (dbSettings.timezone as string) ?? DEFAULT_SETTINGS.timezone as string,
     schedule_rule: (dbSettings.schedule_rule as string) ?? DEFAULT_SETTINGS.schedule_rule as string,
     ua: (dbSettings.ua as string) ?? DEFAULT_SETTINGS.ua as string,

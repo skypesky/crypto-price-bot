@@ -72,3 +72,47 @@ describe('config', () => {
     expect(a).toBe(b);
   });
 });
+
+describe('Config feishu Bot fields', () => {
+  beforeEach(() => {
+    // 清空相关 env，避免污染
+    delete process.env['FEISHU_APP_ID'];
+    delete process.env['FEISHU_APP_SECRET'];
+    delete process.env['FEISHU_ENCRYPT_KEY'];
+    delete process.env['FEISHU_VERIFICATION_TOKEN'];
+    delete process.env['FEISHU_DEFAULT_RECEIVE_ID'];
+    delete process.env['FEISHU_DEFAULT_RECEIVE_ID_TYPE'];
+  });
+
+  it('env 缺失时所有 feishu Bot 字段都是 null/默认', () => {
+    const c = loadConfig();
+    expect(c.feishu_app_id).toBeNull();
+    expect(c.feishu_app_secret).toBeNull();
+    expect(c.feishu_encrypt_key).toBeNull();
+    expect(c.feishu_verification_token).toBeNull();
+    expect(c.feishu_default_receive_id).toBeNull();
+    expect(c.feishu_default_receive_id_type).toBe('chat_id');
+  });
+
+  it('env 提供时字段被正确读取', () => {
+    process.env['FEISHU_APP_ID'] = 'cli_test';
+    process.env['FEISHU_APP_SECRET'] = 'secret_test';
+    process.env['FEISHU_ENCRYPT_KEY'] = 'encrypt_test';
+    process.env['FEISHU_VERIFICATION_TOKEN'] = 'token_test';
+    process.env['FEISHU_DEFAULT_RECEIVE_ID'] = 'oc_test';
+    process.env['FEISHU_DEFAULT_RECEIVE_ID_TYPE'] = 'open_id';
+    const c = loadConfig();
+    expect(c.feishu_app_id).toBe('cli_test');
+    expect(c.feishu_app_secret).toBe('secret_test');
+    expect(c.feishu_encrypt_key).toBe('encrypt_test');
+    expect(c.feishu_verification_token).toBe('token_test');
+    expect(c.feishu_default_receive_id).toBe('oc_test');
+    expect(c.feishu_default_receive_id_type).toBe('open_id');
+  });
+
+  it('receive_id_type 不是 4 选 1 时默认 chat_id', () => {
+    process.env['FEISHU_DEFAULT_RECEIVE_ID_TYPE'] = 'invalid_value';
+    const c = loadConfig();
+    expect(c.feishu_default_receive_id_type).toBe('chat_id');
+  });
+});
