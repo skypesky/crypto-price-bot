@@ -123,3 +123,78 @@ make test.coverage      # + 覆盖率报告
 ## 📄 开源协议
 
 [ISC License](LICENSE)
+
+## 飞书 Bot 配置（可选，「立即查询」按钮功能）
+
+定时推送默认走 **webhook 自定义机器人**（纯文本）。
+要开启「🔄 立即查询」按钮（卡片可点击、点完 DM 给你），需要额外配置飞书自建应用 Bot。本项目使用 **SDK 长连接（WebSocket）** 模式，**不需要公网 URL / ngrok**，本地开发即可用。
+
+### 1. 创建应用
+
+访问 https://open.feishu.cn/app → 创建企业自建应用
+
+### 2. 开启机器人能力
+
+应用能力 → 机器人 → 添加
+
+### 3. 配置权限
+
+权限管理 → 开通以下 scope：
+- `im:message`（接收消息）
+- `im:message:send_as_bot`（以 Bot 名义发）
+- `im:message.p2p_msg`（单聊）
+- `im:chat:readonly`（查询所在群）
+
+### 4. 获取 App ID / App Secret
+
+应用 → 凭证与基础信息 → 复制 App ID 和 App Secret
+
+### 5. 获取 receive_id
+
+```bash
+# 拿 tenant_access_token
+curl -X POST https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal \
+  -H "Content-Type: application/json" \
+  -d '{"app_id":"cli_xxx","app_secret":"xxx"}'
+
+# 列出 bot 所在的所有群
+curl -G "https://open.feishu.cn/open-apis/im/v1/chats" \
+  -H "Authorization: Bearer <token>" \
+  --data-urlencode "user_id_type=open_id"
+```
+
+返回的 `chat_id` 就是 `FEISHU_DEFAULT_RECEIVE_ID`。
+
+### 6. 发布应用
+
+版本管理与发布 → 创建版本 → 申请发布（需企业管理员审批）
+
+### 7. 填 .env
+
+参考 `.env.example` 的 Bot 字段，填上 4 个变量：
+
+```bash
+FEISHU_APP_ID=cli_xxxxxxxxxxxx
+FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxx
+FEISHU_DEFAULT_RECEIVE_ID=oc_xxxxxxxxxxxxx
+FEISHU_DEFAULT_RECEIVE_ID_TYPE=chat_id
+```
+
+重启服务即可。
+
+### 8. 验证
+
+- 重启 server，看日志：`[INFO] [app:feishu-ws] feishu WS client started`
+- 等下次调度（或 dashboard 手点）→ 群里收到带「🔄 立即查询」按钮的卡片
+- 点按钮 → 几秒后收到 DM
+
+### 不需要的事
+
+- ❌ 不需要公网 URL / 域名
+- ❌ 不需要 ngrok / cloudflared
+- ❌ 不需要事件回调配置
+- ❌ 不需要 Encrypt Key / Verification Token
+
+### 凭证缺失的降级行为
+
+如果 4 个必填 env 变量任一缺失，server 启动时会打日志 `Bot not configured, skipping feishu WS start`，定时推送自动降级为 webhook 纯文本（无按钮）。系统不会宕机。
