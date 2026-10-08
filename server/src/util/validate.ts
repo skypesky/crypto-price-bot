@@ -43,6 +43,7 @@ export const coinSchema = z.object({
   name: z.string().min(1).max(64),
   gate_pair: z.union([z.string().regex(/^[A-Z0-9]+_[A-Z0-9]+$/), z.null()]),
   gate_slug: z.union([z.string().min(1).max(64).regex(/^[a-z0-9-]+$/), z.null()]).optional(),
+  binance_slug: z.union([z.string().min(1).max(64).regex(/^[a-z0-9-]+$/), z.null()]).optional(),
   cg_id: z.string().min(1).max(64),
   sort_order: z.number().int().min(0).default(0),
   enabled: z.boolean().default(true),

@@ -6,6 +6,7 @@ export interface Coin {
   name: string;
   gate_pair: string | null;
   gate_slug: string | null;
+  binance_slug: string | null;
   cg_id: string;
   sort_order: number;
   enabled: number; // 0/1
@@ -18,19 +19,19 @@ export interface Coin {
   updated_at: number;
 }
 
-const COIN_COLS = `id, symbol, name, gate_pair, gate_slug, cg_id, sort_order, enabled,
+const COIN_COLS = `id, symbol, name, gate_pair, gate_slug, binance_slug, cg_id, sort_order, enabled,
   alert_above, alert_below, last_price, last_alert_at, last_alert_dir, created_at, updated_at`;
 
 export const DEFAULT_COINS: Array<Omit<Coin, 'id' | 'created_at' | 'updated_at' | 'last_alert_at' | 'last_price' | 'last_alert_dir'>> = [
-  { symbol: 'BTC',  name: '比特币',   gate_pair: 'BTC_USDT',  gate_slug: 'bitcoin',     cg_id: 'bitcoin',         sort_order: 0,  enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'ETH',  name: '以太坊',   gate_pair: 'ETH_USDT',  gate_slug: 'ethereum',    cg_id: 'ethereum',        sort_order: 1,  enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'USDT', name: '泰达币',   gate_pair: null,        gate_slug: 'tether',      cg_id: 'tether',          sort_order: 2,  enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'SOL',  name: '索拉纳',   gate_pair: 'SOL_USDT',  gate_slug: 'solana',      cg_id: 'solana',          sort_order: 3,  enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'ABT',  name: '区块基石', gate_pair: 'ABT_USDT',  gate_slug: 'arcblock',    cg_id: 'arcblock',        sort_order: 4,  enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'BNB',  name: '币安币',   gate_pair: 'BNB_USDT',  gate_slug: 'bnb',         cg_id: 'binancecoin',     sort_order: 5,  enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'GT',   name: 'Gate',    gate_pair: 'GT_USDT',   gate_slug: 'gate',        cg_id: 'gatechain-token', sort_order: 6, enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'YGG',  name: 'Yield Guild Games', gate_pair: 'YGG_USDT',  gate_slug: 'yieldguildgames', cg_id: 'yield-guild-games', sort_order: 7, enabled: 1, alert_above: null, alert_below: null },
-  { symbol: 'SAGA', name: 'Saga',              gate_pair: 'SAGA_USDT', gate_slug: 'saga',            cg_id: 'saga-2',            sort_order: 8, enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'BTC',  name: '比特币',   gate_pair: 'BTC_USDT',  gate_slug: 'bitcoin',     binance_slug: 'bitcoin',          cg_id: 'bitcoin',         sort_order: 0,  enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'ETH',  name: '以太坊',   gate_pair: 'ETH_USDT',  gate_slug: 'ethereum',    binance_slug: 'ethereum',         cg_id: 'ethereum',        sort_order: 1,  enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'USDT', name: '泰达币',   gate_pair: null,        gate_slug: 'tether',      binance_slug: 'tether',           cg_id: 'tether',          sort_order: 2,  enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'SOL',  name: '索拉纳',   gate_pair: 'SOL_USDT',  gate_slug: 'solana',      binance_slug: 'solana',           cg_id: 'solana',          sort_order: 3,  enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'ABT',  name: '区块基石', gate_pair: 'ABT_USDT',  gate_slug: 'arcblock',    binance_slug: 'arcblock',         cg_id: 'arcblock',        sort_order: 4,  enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'BNB',  name: '币安币',   gate_pair: 'BNB_USDT',  gate_slug: 'bnb',         binance_slug: 'bnb',              cg_id: 'binancecoin',     sort_order: 5,  enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'GT',   name: 'Gate',    gate_pair: 'GT_USDT',   gate_slug: 'gate',        binance_slug: null,               cg_id: 'gatechain-token', sort_order: 6, enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'YGG',  name: 'Yield Guild Games', gate_pair: 'YGG_USDT',  gate_slug: 'yieldguildgames', binance_slug: 'yield-guild-games', cg_id: 'yield-guild-games', sort_order: 7, enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'SAGA', name: 'Saga',              gate_pair: 'SAGA_USDT', gate_slug: 'saga',            binance_slug: 'saga',               cg_id: 'saga-2',            sort_order: 8, enabled: 1, alert_above: null, alert_below: null },
 ];
 
 export function initDefaultCoins(): void {
@@ -39,13 +40,13 @@ export function initDefaultCoins(): void {
   if (count > 0) return;
   const now = Date.now();
   const stmt = db.prepare(
-    `INSERT INTO coins (symbol, name, gate_pair, gate_slug, cg_id, sort_order, enabled,
+    `INSERT INTO coins (symbol, name, gate_pair, gate_slug, binance_slug, cg_id, sort_order, enabled,
        alert_above, alert_below, last_alert_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
   );
   const tx = db.transaction((rows: typeof DEFAULT_COINS) => {
     for (const c of rows) {
-      stmt.run(c.symbol, c.name, c.gate_pair, c.gate_slug, c.cg_id, c.sort_order, c.enabled,
+      stmt.run(c.symbol, c.name, c.gate_pair, c.gate_slug, c.binance_slug, c.cg_id, c.sort_order, c.enabled,
         c.alert_above, c.alert_below, now, now);
     }
   });
@@ -68,10 +69,10 @@ export function findCoinById(id: number): Coin | null {
 export function createCoin(input: Omit<Coin, 'id' | 'created_at' | 'updated_at' | 'last_alert_at' | 'last_price' | 'last_alert_dir'>): Coin {
   const now = Date.now();
   const info = getDb().prepare(
-    `INSERT INTO coins (symbol, name, gate_pair, gate_slug, cg_id, sort_order, enabled,
+    `INSERT INTO coins (symbol, name, gate_pair, gate_slug, binance_slug, cg_id, sort_order, enabled,
        alert_above, alert_below, last_alert_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-  ).run(input.symbol, input.name, input.gate_pair, input.gate_slug, input.cg_id, input.sort_order, input.enabled,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+  ).run(input.symbol, input.name, input.gate_pair, input.gate_slug, input.binance_slug, input.cg_id, input.sort_order, input.enabled,
        input.alert_above, input.alert_below, now, now);
   return findCoinById(Number(info.lastInsertRowid))!;
 }
@@ -81,10 +82,10 @@ export function updateCoin(id: number, patch: Partial<Omit<Coin, 'id' | 'created
   if (!cur) return null;
   const merged = { ...cur, ...patch, updated_at: Date.now() };
   getDb().prepare(
-    `UPDATE coins SET symbol=?, name=?, gate_pair=?, gate_slug=?, cg_id=?, sort_order=?, enabled=?,
+    `UPDATE coins SET symbol=?, name=?, gate_pair=?, gate_slug=?, binance_slug=?, cg_id=?, sort_order=?, enabled=?,
         alert_above=?, alert_below=?, last_price=?, last_alert_at=?, last_alert_dir=?, updated_at=?
      WHERE id=?`,
-  ).run(merged.symbol, merged.name, merged.gate_pair, merged.gate_slug, merged.cg_id, merged.sort_order, merged.enabled,
+  ).run(merged.symbol, merged.name, merged.gate_pair, merged.gate_slug, merged.binance_slug, merged.cg_id, merged.sort_order, merged.enabled,
         merged.alert_above, merged.alert_below, merged.last_price, merged.last_alert_at, merged.last_alert_dir,
         merged.updated_at, id);
   return findCoinById(id);

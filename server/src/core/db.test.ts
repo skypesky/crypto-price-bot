@@ -82,6 +82,7 @@ describe('db migrate: gate_slug 已知坏 slug 自动修复', () => {
     ins.run('FIL',    '文件币',   'FIL_USDT',    'filecoinipfs',   'filecoin',    6, 1, now, now); // 待删除（迁移会清掉 FIL 行）
     ins.run('BTC',    '比特币',   'BTC_USDT',    'bitcoin',        'bitcoin',     0, 1, now, now); // 正常 slug
     ins.run('CUSTOM', '用户币',   'CUSTOM_USDT', 'my-custom-slug', 'custom',     99, 1, now, now); // 用户自定义
+    ins.run('GT',     'Gate',     'GT_USDT',     'gate',           'gatechain-token', 7, 1, now, now); // 币安未上架，binance_slug 保持 NULL
     seed.close();
     // 2) 触发 initDb → migrate 跑修复
     closeDb();
@@ -114,6 +115,19 @@ describe('db migrate: gate_slug 已知坏 slug 自动修复', () => {
   it('用户自定义 slug 不被覆盖', () => {
     const row = getDb().prepare(`SELECT gate_slug FROM coins WHERE symbol='CUSTOM'`).get() as { gate_slug: string };
     expect(row.gate_slug).toBe('my-custom-slug');
+  });
+
+  it('binance_slug 列被自动加上 + 默认币种被回填', () => {
+    // 老版本 DB 没有 binance_slug 列，迁移后必须存在且默认币种已被回填
+    const cols = (getDb().prepare(`PRAGMA table_info(coins)`).all() as Array<{ name: string }>).map((c) => c.name);
+    expect(cols).toContain('binance_slug');
+    const bnb = getDb().prepare(`SELECT binance_slug FROM coins WHERE symbol='BNB'`).get() as { binance_slug: string };
+    expect(bnb.binance_slug).toBe('bnb');
+  });
+
+  it('币安未上架的币 binance_slug 保持 NULL', () => {
+    const gt = getDb().prepare(`SELECT binance_slug FROM coins WHERE symbol='GT'`).get() as { binance_slug: string | null };
+    expect(gt.binance_slug).toBeNull();
   });
 
   it('修复是幂等的（重复 initDb 不会再次 UPDATE）', () => {

@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS coins (
   name           TEXT    NOT NULL,
   gate_pair      TEXT,
   gate_slug      TEXT,
+  binance_slug   TEXT,                 -- 币安价格页 slug（如 bitcoin / bnb）。币安不上的币留 NULL
   cg_id          TEXT    NOT NULL,
   sort_order     INTEGER NOT NULL DEFAULT 0,
   enabled        INTEGER NOT NULL DEFAULT 1,
@@ -102,6 +103,16 @@ const GATE_SLUG_BY_SYMBOL: Record<string, string> = {
   GT: 'gate', YGG: 'yieldguildgames', SAGA: 'saga',
 };
 
+/** 默认币种 → binance.com 价格页 slug（用于现有 DB 回填 binance_slug）。
+ *  币安价格页 URL 形如 `https://www.binance.com/zh-CN/price/{slug}/`。
+ *  注意：BNB 在 cg_id 是 `binancecoin`，但币安自家用 `bnb`，所以必须独立字段，不能直接复用 cg_id。
+ *  币安未上架的币（GT）不列入，迁移后 binance_slug 保持 NULL，报告里也不显示币安链接。 */
+const BINANCE_SLUG_BY_SYMBOL: Record<string, string> = {
+  BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
+  ABT: 'arcblock', BNB: 'bnb',
+  YGG: 'yield-guild-games', SAGA: 'saga',
+};
+
 /** 已知坏 slug → 新 slug。
  *  一些币的 slug 被 gate.com 改路由后，旧 slug 会被劫持到狗头页。
  *  仅在此处白名单的 (symbol, oldSlug) 组合会被强制覆盖为新 slug，
@@ -117,6 +128,9 @@ function migrate(db: Database.Database): void {
   const colNames = new Set(cols.map((c) => c.name));
   if (!colNames.has('gate_slug')) {
     db.exec(`ALTER TABLE coins ADD COLUMN gate_slug TEXT`);
+  }
+  if (!colNames.has('binance_slug')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN binance_slug TEXT`);
   }
   // 价格预警字段（独立 ALTER 以兼容 v2.0 之前没这些列的旧库）
   if (!colNames.has('alert_above')) {
@@ -138,6 +152,11 @@ function migrate(db: Database.Database): void {
   const upd = db.prepare(`UPDATE coins SET gate_slug = ? WHERE symbol = ? AND (gate_slug IS NULL OR gate_slug = '')`);
   for (const [symbol, slug] of Object.entries(GATE_SLUG_BY_SYMBOL)) {
     upd.run(slug, symbol);
+  }
+  // 回填现有币种的 binance_slug（仅当为空时）。币安未上架的币不列入，binance_slug 保持 NULL。
+  const updBinance = db.prepare(`UPDATE coins SET binance_slug = ? WHERE symbol = ? AND (binance_slug IS NULL OR binance_slug = '')`);
+  for (const [symbol, slug] of Object.entries(BINANCE_SLUG_BY_SYMBOL)) {
+    updBinance.run(slug, symbol);
   }
   // 修复已知坏 slug → 新 slug。
   // 只对白名单里的 (symbol, oldSlug) 组合生效：用户手动编辑过的 slug 不会被覆盖，

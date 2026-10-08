@@ -76,8 +76,11 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
     } else {
       msg += `   📈 趋势数据暂时不可用\n`;
     }
-    const { gate: gateUrl, coingecko: cgUrl } = buildCoinLinks(coin);
-    msg += `   🔗 [Gate](${gateUrl}) | [CoinGecko](${cgUrl})\n\n`;
+    const { gate: gateUrl, binance: binanceUrl, coingecko: cgUrl } = buildCoinLinks(coin);
+    const links: string[] = [`[Gate](${gateUrl})`];
+    if (binanceUrl) links.push(`[Binance](${binanceUrl})`);
+    links.push(`[CoinGecko](${cgUrl})`);
+    msg += `   🔗 ${links.join(' | ')}\n\n`;
   }
   msg += `⏰ 更新时间: ${now.toLocaleString('zh-CN', { timeZone: timezone })}`;
   msg += `\n⚠️ MA（移动平均线）仅供参考，不构成投资建议`;
@@ -102,16 +105,20 @@ export function buildIndicators(closes: number[], currentPrice: number) {
 }
 
 /**
- * 生成单个币种的外部链接（Gate / CoinGecko）。
+ * 生成单个币种的外部链接（Gate / Binance / CoinGecko）。
  * 抽出来便于测试 URL 形态；URL 改了/挂了就立刻在 build/test 时炸出来。
  */
-export function buildCoinLinks(coin: Coin): { gate: string; coingecko: string } {
+export function buildCoinLinks(coin: Coin): { gate: string; binance: string | null; coingecko: string } {
   // gate.com 实际路径格式：`{name-slug}-{symbol}`，例如 bitcoin-btc / cosmos-hub-atom。
   // 没有 gate_slug 的旧数据回退到 symbol（小写）。
   const slug = (coin.gate_slug && coin.gate_slug.trim())
     ? coin.gate_slug.toLowerCase()
     : coin.symbol.toLowerCase();
   const gate = `https://www.gate.com/zh/price/${slug}-${coin.symbol.toLowerCase()}`;
+  // 币安价格页 URL：`https://www.binance.com/zh-CN/price/{slug}/`。
+  // binance_slug 为 NULL 时（币安未上架，例如 GT）返回 null，调用方负责跳过展示。
+  const binanceSlug = (coin.binance_slug && coin.binance_slug.trim()) ? coin.binance_slug.trim() : null;
+  const binance = binanceSlug ? `https://www.binance.com/zh-CN/price/${binanceSlug}/` : null;
   const coingecko = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(coin.cg_id)}`;
-  return { gate, coingecko };
+  return { gate, binance, coingecko };
 }

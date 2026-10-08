@@ -8,7 +8,7 @@ import type { Coin } from '../models/coin.js';
 let customDb: Database.Database;
 
 const fakeCoin = (overrides: Partial<Coin> = {}): Coin => ({
-  id: 1, symbol: 'BTC', name: '比特币', gate_pair: 'BTC_USDT', gate_slug: 'bitcoin', cg_id: 'bitcoin',
+  id: 1, symbol: 'BTC', name: '比特币', gate_pair: 'BTC_USDT', gate_slug: 'bitcoin', binance_slug: 'bitcoin', cg_id: 'bitcoin',
   sort_order: 0, enabled: 1, created_at: 0, updated_at: 0,
   ...overrides,
 });
@@ -169,9 +169,10 @@ describe('buildMessage', () => {
 });
 
 describe('buildCoinLinks', () => {
-  it('BTC：生成正确的 gate / coingecko URL', () => {
-    const { gate, coingecko } = buildCoinLinks(fakeCoin());
+  it('BTC：生成正确的 gate / binance / coingecko URL', () => {
+    const { gate, binance, coingecko } = buildCoinLinks(fakeCoin());
     expect(gate).toBe('https://www.gate.com/zh/price/bitcoin-btc');
+    expect(binance).toBe('https://www.binance.com/zh-CN/price/bitcoin/');
     expect(coingecko).toBe('https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin');
   });
 
@@ -190,6 +191,43 @@ describe('buildCoinLinks', () => {
     expect(gate).toBe('https://www.gate.com/zh/price/usdt-usdt');
   });
 
+  it('BNB 的 binance_slug 是 bnb（不是 cg_id 的 binancecoin）', () => {
+    const { binance } = buildCoinLinks(fakeCoin({ symbol: 'BNB', gate_slug: 'bnb', binance_slug: 'bnb', cg_id: 'binancecoin' }));
+    expect(binance).toBe('https://www.binance.com/zh-CN/price/bnb/');
+  });
+
+  it('binance_slug 为空时 binance 返回 null（币安未上架的币）', () => {
+    const { binance } = buildCoinLinks(fakeCoin({ symbol: 'GT', gate_slug: 'gate', binance_slug: null, cg_id: 'gatechain-token' }));
+    expect(binance).toBeNull();
+  });
+
+  it('buildMessage 在 binance_slug 为 null 时不展示 Binance 链接', () => {
+    const r: CoinResult = {
+      coin: fakeCoin({ symbol: 'GT', gate_slug: 'gate', binance_slug: null, cg_id: 'gatechain-token' }),
+      ticker: { last: '9.0' },
+      indicators: null,
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    expect(msg).not.toContain('[Binance](');
+    // 仍然展示 Gate 和 CoinGecko
+    expect(msg).toContain('[Gate](');
+    expect(msg).toContain('[CoinGecko](');
+  });
+
+  it('buildMessage 默认展示 Gate | Binance | CoinGecko 三段链接', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    expect(msg).toContain('[Gate](https://www.gate.com/zh/price/bitcoin-btc)');
+    expect(msg).toContain('[Binance](https://www.binance.com/zh-CN/price/bitcoin/)');
+    expect(msg).toContain('[CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)');
+  });
+
   // 结构与可达性检查：如果将来 URL 形态变了（域名 / 路径改了），这些会先炸
   it.each([
     ['BTC',  'bitcoin',     'bitcoin'],
@@ -198,13 +236,18 @@ describe('buildCoinLinks', () => {
     ['FIL',  'filecoinipfs','filecoin'],
     ['ATOM', 'cosmos-hub',  'cosmos'],
   ])('%s URL 结构合法 + 主机正确', (sym, slug, cgId) => {
-    const { gate, coingecko } = buildCoinLinks(fakeCoin({ symbol: sym, gate_slug: slug, cg_id: cgId }));
+    const { gate, binance, coingecko } = buildCoinLinks(fakeCoin({ symbol: sym, gate_slug: slug, binance_slug: slug, cg_id: cgId }));
     const g = new URL(gate);
+    const b = binance ? new URL(binance) : null;
     const c = new URL(coingecko);
     expect(g.host).toBe('www.gate.com');
     expect(c.host).toBe('www.coingecko.com');
     expect(g.pathname).toMatch(new RegExp(`^/zh/price/${slug}-${sym.toLowerCase()}$`));
     expect(c.pathname).toMatch(/^\/zh\/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81\/[^/]+$/);
+    if (b) {
+      expect(b.host).toBe('www.binance.com');
+      expect(b.pathname).toMatch(new RegExp(`^/zh-CN/price/${slug}/$`));
+    }
   });
 
   // 真正的 slug 回归测试放到了 models.test.ts 的 DEFAULT_COINS 上（直接验证 DB 默认值）。

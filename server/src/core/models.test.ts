@@ -15,7 +15,7 @@ beforeAll(() => {
     CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);
-    CREATE TABLE coins (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT UNIQUE NOT NULL, name TEXT NOT NULL, gate_pair TEXT, gate_slug TEXT, cg_id TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, alert_above REAL, alert_below REAL, last_price REAL, last_alert_at INTEGER NOT NULL DEFAULT 0, last_alert_dir TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE coins (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT UNIQUE NOT NULL, name TEXT NOT NULL, gate_pair TEXT, gate_slug TEXT, binance_slug TEXT, cg_id TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, alert_above REAL, alert_below REAL, last_price REAL, last_alert_at INTEGER NOT NULL DEFAULT 0, last_alert_dir TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE reports (id INTEGER PRIMARY KEY AUTOINCREMENT, triggered_by TEXT NOT NULL, success INTEGER NOT NULL, total_coins INTEGER NOT NULL, ok_coins INTEGER NOT NULL, tg_sent INTEGER NOT NULL, feishu_sent INTEGER NOT NULL, message TEXT NOT NULL, summary TEXT NOT NULL, created_at INTEGER NOT NULL);
   `);
   setDb(customDb);
@@ -129,15 +129,41 @@ describe('coin model', () => {
     expect(found!.enabled).toBe(1);
   });
 
+  // binance_slug 回归测试：
+  // - BNB 在 cg_id 是 'binancecoin'，但币安自家用 'bnb'，所以必须独立字段
+  // - GT 是 gate.io 自己的币，币安未上架，binance_slug 必须为 null
+  it.each([
+    ['BTC',  'bitcoin'],
+    ['ETH',  'ethereum'],
+    ['USDT', 'tether'],
+    ['SOL',  'solana'],
+    ['ABT',  'arcblock'],
+    ['BNB',  'bnb'],
+    ['YGG',  'yield-guild-games'],
+    ['SAGA', 'saga'],
+  ])('%s 默认 binance_slug = %s', (symbol, expectedSlug) => {
+    const found = coin.DEFAULT_COINS.find((c) => c.symbol === symbol);
+    expect(found).toBeDefined();
+    expect(found!.binance_slug).toBe(expectedSlug);
+  });
+
+  it('GT 默认 binance_slug 为 null（币安未上架）', () => {
+    const found = coin.DEFAULT_COINS.find((c) => c.symbol === 'GT');
+    expect(found).toBeDefined();
+    expect(found!.binance_slug).toBeNull();
+  });
+
   it('CRUD', () => {
     const c = coin.createCoin({
-      symbol: 'TEST', name: '测试币', gate_pair: 'TEST_USDT', gate_slug: 'test', cg_id: 'test', sort_order: 99, enabled: 1,
+      symbol: 'TEST', name: '测试币', gate_pair: 'TEST_USDT', gate_slug: 'test', binance_slug: 'test', cg_id: 'test', sort_order: 99, enabled: 1,
     });
     expect(c.id).toBeGreaterThan(0);
     expect(c.gate_slug).toBe('test');
-    const updated = coin.updateCoin(c.id, { name: '改名', gate_slug: 'renamed' });
+    expect(c.binance_slug).toBe('test');
+    const updated = coin.updateCoin(c.id, { name: '改名', gate_slug: 'renamed', binance_slug: null });
     expect(updated?.name).toBe('改名');
     expect(updated?.gate_slug).toBe('renamed');
+    expect(updated?.binance_slug).toBeNull();
     expect(coin.deleteCoin(c.id)).toBe(true);
   });
 
