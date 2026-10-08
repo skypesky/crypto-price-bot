@@ -57,6 +57,7 @@ export interface Coin {
   name: string;
   gate_pair: string | null;
   gate_slug: string | null;
+  binance_slug: string | null;
   cg_id: string;
   sort_order: number;
   enabled: number;
