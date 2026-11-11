@@ -57,8 +57,8 @@ describe('analyzeIntraday', () => {
 
   it('横盘：识别箱体震荡，价格在中部时建议观望', () => {
     const r = analyzeIntraday(baseInput(105))!;
-    expect(r.headline).toContain('4h 震荡');
-    expect(r.headline).toContain('箱体 ');
+    expect(r.headline).toContain('4h：震荡');
+    expect(r.headline).toContain('箱体：');
     expect(r.headline).toContain('中部50%');
     expect(r.advice).toContain('箱体中部');
   });
@@ -97,7 +97,7 @@ describe('analyzeIntraday', () => {
     expect(r.headline).toContain('偏多');
 
     // 4h：BOLL 上/中/下 + MACD + RSI + ATR 压缩在一行
-    expect(r.h4).toContain('BOLL4h 上$');
+    expect(r.h4).toContain('BOLL4h：上$');
     expect(r.h4).toContain('/中$');
     expect(r.h4).toContain('/下$');
     expect(r.h4).toContain('MACD');
@@ -105,7 +105,7 @@ describe('analyzeIntraday', () => {
     expect(r.h4).toContain('ATR');
 
     // 1h：BOLL 上/中/下 + %B + MACD/RSI 压缩在一行
-    expect(r.h1).toContain('BOLL1h 上$');
+    expect(r.h1).toContain('BOLL1h：上$');
     expect(r.h1).toContain('/中$');
     expect(r.h1).toContain('/下$');
     expect(r.h1).toContain('%B');
@@ -122,8 +122,8 @@ describe('analyzeIntraday', () => {
 
   it('只有 1h：4h 显示数据不足，箱体照常输出', () => {
     const r = analyzeIntraday({ current: 105, candles4h: [], candles1h: range(49, 100, 110) })!;
-    expect(r.headline).toContain('4h 数据不足');
-    expect(r.headline).toContain('箱体 ');
+    expect(r.headline).toContain('4h：数据不足');
+    expect(r.headline).toContain('箱体：');
     expect(r.h4).toBeNull();
   });
 });

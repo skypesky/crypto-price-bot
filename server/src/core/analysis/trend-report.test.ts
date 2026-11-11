@@ -213,14 +213,14 @@ describe('analyzeTrend', () => {
     it('多空比 / 持仓 / 爆仓都会被写进情绪与资金行', () => {
       const closes = series(100, 400, 0.995);
       const a = analyze(closes[closes.length - 1]!, { daily: closes }, derivatives);
-      expect(a.sentiment.join('\n')).toContain('多空 2.25');
-      expect(a.sentiment.join('\n')).toContain('大户 0.56');
-      expect(a.sentiment.join('\n')).toContain('主动 ');
-      expect(a.sentiment.join('\n')).toContain('多空用户');
-      expect(a.futures.join('\n')).toContain('费率 ');
+      expect(a.sentiment.join('\n')).toContain('多空：2.25');
+      expect(a.sentiment.join('\n')).toContain('大户：0.56');
+      expect(a.sentiment.join('\n')).toContain('主动：');
+      expect(a.sentiment.join('\n')).toContain('多空用户：');
+      expect(a.futures.join('\n')).toContain('费率：');
       expect(a.futures.join('\n')).toContain('年化');
-      expect(a.futures.join('\n')).toContain('持仓');
-      expect(a.futures.join('\n')).toContain('多头爆仓');
+      expect(a.futures.join('\n')).toContain('持仓：');
+      expect(a.futures.join('\n')).toContain('多头爆仓：');
     });
 
     it('散户偏多而大户偏空时给出解读', () => {

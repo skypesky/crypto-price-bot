@@ -247,9 +247,9 @@ export function analyzeIntraday(input: IntradayInput): IntradayAnalysis | null {
     votes === 0 || (score > -2 && score < 2) ? '震荡' : score >= 2 ? '偏多' : '偏空';
 
   // ---- 方向 + 箱体位置（第一行）----
-  const dirText = has4 ? `4h ${dir}` : '4h 数据不足';
+  const dirText = has4 ? `4h：${dir}` : '4h：数据不足';
   const boxText = box
-    ? `箱体 ${usd(box.low)}~${usd(box.high)}(${box.widthPct.toFixed(1)}% ${boxPosText(box)})`
+    ? `箱体：${usd(box.low)}~${usd(box.high)}(${box.widthPct.toFixed(1)}% ${boxPosText(box)})`
     : '';
   const headline = [dirText, boxText].filter(Boolean).join(' · ');
 
@@ -258,20 +258,20 @@ export function analyzeIntraday(input: IntradayInput): IntradayAnalysis | null {
   if (boll4) {
     const squeeze = squeezeTag(bandPct4);
     h4Parts.push(
-      `BOLL4h 上${usd(boll4.upper)}/中${usd(boll4.mid)}/下${usd(boll4.lower)}` +
+      `BOLL4h：上${usd(boll4.upper)}/中${usd(boll4.mid)}/下${usd(boll4.lower)}` +
       `(带宽${boll4.bandwidth.toFixed(1)}%${squeeze ? ` ${squeeze}` : ''})`,
     );
   }
-  if (macd4) h4Parts.push(`MACD${macdTag(macd4)}`);
-  if (rsi4 !== null) h4Parts.push(`RSI${rsi4.toFixed(1)}(${rsiTag(rsi4)})`);
+  if (macd4) h4Parts.push(`MACD：${macdTag(macd4)}`);
+  if (rsi4 !== null) h4Parts.push(`RSI：${rsi4.toFixed(1)}(${rsiTag(rsi4)})`);
   if (atr4 !== null) {
     const atrPct = (atr4 / current) * 100;
-    h4Parts.push(`ATR${atrPct.toFixed(2)}%(${atrTag(atrPct)})`);
+    h4Parts.push(`ATR：${atrPct.toFixed(2)}%(${atrTag(atrPct)})`);
   }
   const vol = volumeTrend(candles4h, 6);
   const volumeUp = (vol ?? 0) > 0;
   if (vol !== null && Math.abs(vol) >= 10) {
-    h4Parts.push(`量能${vol >= 0 ? '+' : ''}${vol.toFixed(0)}%`);
+    h4Parts.push(`量能：${vol >= 0 ? '+' : ''}${vol.toFixed(0)}%`);
   }
 
   // ---- 1h 指标（一行）----
@@ -282,12 +282,12 @@ export function analyzeIntraday(input: IntradayInput): IntradayAnalysis | null {
       : 50;
     const squeeze = squeezeTag(bandPct1);
     h1Parts.push(
-      `BOLL1h 上${usd(boll1.upper)}/中${usd(boll1.mid)}/下${usd(boll1.lower)}` +
+      `BOLL1h：上${usd(boll1.upper)}/中${usd(boll1.mid)}/下${usd(boll1.lower)}` +
       `(%B${pctB.toFixed(0)}% ${bandPositionTag(pctB)}${squeeze ? ` ${squeeze}` : ''})`,
     );
   }
-  if (macd1) h1Parts.push(`MACD${macdTag(macd1)}`);
-  if (rsi1 !== null) h1Parts.push(`RSI${rsi1.toFixed(1)}(${rsiTag(rsi1)})`);
+  if (macd1) h1Parts.push(`MACD：${macdTag(macd1)}`);
+  if (rsi1 !== null) h1Parts.push(`RSI：${rsi1.toFixed(1)}(${rsiTag(rsi1)})`);
 
   return {
     headline,

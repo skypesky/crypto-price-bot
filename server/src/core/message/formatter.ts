@@ -72,34 +72,56 @@ export function messageToFeishuCard(message: string, opts?: FeishuCardOptions): 
   if (!isFullReportMessage(message)) return null;
   const includeQueryButton = opts?.includeQueryButton ?? true;
 
-  const sections = message.split(/\n\n+/);
-  const titleSection = sections[0] ?? '';
-  // 标题去掉 `📊 ` 前缀和 `*...*` 包装（飞书 plain_text 不渲染 markdown）
-  const titlePlain = titleSection
-    .replace(/^\s*📊\s*\*?/, '')
-    .replace(/\*?\s*$/, '')
-    .trim() || '加密货币价格报告';
-
+  // 报告用空行分隔币种块内的各个分区，所以不能按空行切段 ——
+  // 改按 `🔹` 边界切：每个 `🔹` 开头到下一个 `🔹` 之前是一个币种块。
+  // 币种块以 `🔗` 链接行结束，之后的内容是报告尾部（更新时间 / 免责声明）。
   type CoinBlock = {
     content: string;
     links: { gate: string; binance: string | null; coinglass: string; coingecko: string };
   };
+  const lines = message.split('\n');
+  const titleLines: string[] = [];
   const coinBlocks: CoinBlock[] = [];
-  const trailerSections: string[] = [];
+  const trailerLines: string[] = [];
+  let current: string[] | null = null;
+  let inTrailer = false;
 
-  for (let i = 1; i < sections.length; i++) {
-    const sec = sections[i];
-    if (!sec) continue;
-    if (sec.startsWith('🔹')) {
-      const parsed = parseCoinSection(sec);
-      if (parsed) coinBlocks.push(parsed);
+  for (const line of lines) {
+    if (line.startsWith('🔹')) {
+      if (current) {
+        const parsed = parseCoinSection(current.join('\n'));
+        if (parsed) coinBlocks.push(parsed);
+      }
+      current = [line];
+      inTrailer = false;
+      continue;
+    }
+    if (inTrailer) {
+      trailerLines.push(line);
+      continue;
+    }
+    if (current) {
+      current.push(line);
+      // 链接行是币种块的收尾，之后的都是报告尾部
+      if (line.trim().startsWith('🔗')) inTrailer = true;
+    } else if (coinBlocks.length === 0) {
+      titleLines.push(line);
     } else {
-      trailerSections.push(sec);
+      trailerLines.push(line);
     }
   }
+  if (current) {
+    const parsed = parseCoinSection(current.join('\n'));
+    if (parsed) coinBlocks.push(parsed);
+  }
+
+  // 标题去掉 `📊 ` 前缀和 `*...*` 包装（飞书 plain_text 不渲染 markdown）
+  const titlePlain = titleLines.join('\n')
+    .replace(/^\s*📊\s*\*?/, '')
+    .replace(/\*?\s*$/, '')
+    .trim() || '加密货币价格报告';
 
   if (coinBlocks.length === 0) return null;
-
   // 汇率兜底时用橙色 header 提示用户
   const hasFxFallback = /⚠️汇率兜底/.test(message);
   const template: 'blue' | 'orange' = hasFxFallback ? 'orange' : 'blue';
@@ -122,8 +144,8 @@ export function messageToFeishuCard(message: string, opts?: FeishuCardOptions): 
     if (i < coinBlocks.length - 1) elements.push({ tag: 'hr' });
   }
 
-  if (trailerSections.length > 0) {
-    elements.push({ tag: 'markdown', content: trailerSections.join('\n\n') });
+  if (trailerLines.length > 0) {
+    elements.push({ tag: 'markdown', content: trailerLines.join('\n').trim() });
   }
 
   // 末尾加「立即查询」按钮：用户点击后飞书回调 server 重新拉一次报告并 DM 给点击者
@@ -186,6 +208,8 @@ function parseCoinSection(section: string): {
   // 飞书 markdown 组件不支持行内单反引号（inline code，只支持 ``` 代码块），
   // 留着会原样渲染出 ` 符号 → 转成加粗，保留"重点数据"的视觉区分。
   const content = contentLines.join('\n')
+    // 币种块内的空行是分区视觉分隔，飞书 markdown 里会显示成多余空隙 → 收成单个换行
+    .replace(/\n{3,}/g, '\n\n')
     .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '**$1**')
     .replace(/`([^`\n]+)`/g, '**$1**');
 

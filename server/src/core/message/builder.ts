@@ -42,10 +42,11 @@ function fmtUsd(n: number): string {
   });
 }
 
-/** 均线上的美元价格：≥100 取整，避免一行里堆太多小数。 */
+/** 均线上的美元价格：≥100 取整，≥1 保留 2 位，小币最多 6 位。 */
 function fmtUsdShort(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 100) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (abs >= 1) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 }
 
@@ -58,14 +59,19 @@ function fmtCny(n: number): string {
   return n.toPrecision(3);
 }
 
+/** 分区标题：左右各一段横线，把消息切成可扫读的区块。 */
+function section(title: string): string {
+  return `   ──────── ${title} ────────\n`;
+}
+
 /**
- * 均线紧凑写法：`7<75,122(¥53.3万)` —— 符号表示现价与均线的相对位置，
+ * 均线紧凑写法：`7 < 75,122(¥53.3万)` —— 符号表示现价与均线的相对位置，
  * 读法与「现价 < MA7」一致：< = 现价在均线下方，> = 现价在均线上方，= = 持平。
  */
 function formatMA(label: string, ma: number | null, current: number, rate: number): string {
   if (ma === null) return `${label} N/A`;
   const sign = current > ma ? '>' : current < ma ? '<' : '=';
-  return `${label}${sign}${fmtUsdShort(ma)}(¥${fmtCny(ma * rate)})`;
+  return `${label} ${sign} ${fmtUsdShort(ma)}(¥${fmtCny(ma * rate)})`;
 }
 
 export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date; trigger?: 'local' | 'ci'; fxSource?: 'live' | 'cache' | 'fallback' }): string {
@@ -88,7 +94,8 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
     // 标题行：币名 + 现价 + 人民币（紧凑万/亿）+ 汇率，全部压到一行
     msg += `🔹 *${coin.name}* ${coin.symbol} · \`$${fmtUsd(usd)}(¥${fmtCny(usd * usdtToCny)} @${usdtToCny.toFixed(2)})\`\n`;
     if (indicators) {
-      msg += `   📈 7d ${formatTrend(indicators.trend7d)} · 30d ${formatTrend(indicators.trend30d)} · 90d ${formatTrend(indicators.trend90d)} · 180d ${formatTrend(indicators.trend180d)} · 1y ${formatTrend(indicators.trend1y)}\n`;
+      msg += `\n${section('📈 趋势')}`;
+      msg += `   涨跌：${formatTrend(indicators.trend7d)}(7d) · ${formatTrend(indicators.trend30d)}(30d) · ${formatTrend(indicators.trend90d)}(90d) · ${formatTrend(indicators.trend180d)}(180d) · ${formatTrend(indicators.trend1y)}(1y)\n`;
       const maItems = [
         formatMA('7', indicators.ma7, usd, usdtToCny),
         formatMA('30', indicators.ma30, usd, usdtToCny),
@@ -96,22 +103,23 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
         formatMA('180', indicators.ma180, usd, usdtToCny),
         formatMA('365', indicators.ma365, usd, usdtToCny),
       ];
-      msg += `   📊 MA ${maItems.join(' · ')}\n`;
+      msg += `   均线：${maItems.join(' · ')}\n`;
     } else {
-      msg += `   📈 趋势数据暂时不可用\n`;
+      msg += `\n${section('📈 趋势')}\n   涨跌：趋势数据暂时不可用\n`;
     }
     // 日内在前（短线更先看到），趋势研判在后
     if (intraday) {
-      msg += `   ⚡ ${intraday.headline}\n`;
-      if (intraday.h4) msg += `      ${intraday.h4}\n`;
-      if (intraday.h1) msg += `      ${intraday.h1}\n`;
+      msg += `\n${section('⚡ 日内')}`;
+      msg += `   ${intraday.headline}\n`;
+      if (intraday.h4) msg += `   ${intraday.h4}\n`;
+      if (intraday.h1) msg += `   ${intraday.h1}\n`;
       msg += `   💡 ${intraday.advice}\n`;
     }
     if (analysis) {
-      msg += `   🧭 ${analysis.daily}\n`;
-      msg += `      ${analysis.weekly}\n`;
-      msg += `      ${analysis.monthly}\n`;
-      msg += `      ${analysis.yearly}\n`;
+      // 周期研判：日/周/月/年四条合成两行（行宽换行数），解读合并成一行
+      msg += `\n${section('🧭 周期研判')}`;
+      msg += `   ${analysis.daily} ｜ ${analysis.weekly}\n`;
+      msg += `   ${analysis.monthly} ｜ ${analysis.yearly}\n`;
       // 四个周期的解读合并成一行，按「日线·…；周线·…」展开
       const labels = ['日线', '周线', '月线', '年线'];
       const mergedInsight = [
@@ -123,16 +131,20 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
         .map((s, i) => (s ? `${labels[i]}·${s}` : ''))
         .filter(Boolean)
         .join('；');
-      if (mergedInsight) msg += `      解读：${mergedInsight}\n`;
+      if (mergedInsight) msg += `   解读：${mergedInsight}\n`;
       // 合约情绪 + 合约资金：数据各并一行，解读单独一行
       const sentimentData = analysis.sentiment.filter((l) => !l.startsWith('解读：'));
       const sentimentRead = analysis.sentiment.find((l) => l.startsWith('解读：'));
-      if (sentimentData.length) msg += `   📊 ${sentimentData.join(' · ')}\n`;
-      if (analysis.futures.length) msg += `      ${analysis.futures.join(' · ')}\n`;
-      if (sentimentRead) msg += `      解读：${sentimentRead.slice(3)}\n`;
+      if (sentimentData.length || analysis.futures.length || sentimentRead) {
+        msg += `\n${section('📊 合约')}`;
+        if (sentimentData.length) msg += `   ${sentimentData.join(' · ')}\n`;
+        if (analysis.futures.length) msg += `   ${analysis.futures.join(' · ')}\n`;
+        if (sentimentRead) msg += `   解读：${sentimentRead.slice(3)}\n`;
+      }
       // 结论 + 建议合并：`📌 … → 卖出`
       const action = analysis.advice.split(' —— ')[0] ?? analysis.advice;
-      msg += `   📌 ${analysis.summary} → ${action}\n`;
+      msg += `\n${section('📌 结论')}`;
+      msg += `   ${analysis.summary} → ${action}\n`;
     }
     const { gate: gateUrl, binance: binanceUrl, coinglass: cgGlassUrl, coingecko: cgUrl } = buildCoinLinks(coin);
     const links: string[] = [`[Gate](${gateUrl})`];
