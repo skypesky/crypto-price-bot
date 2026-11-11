@@ -532,6 +532,6 @@ node dist/index.js  （GITHUB_ACTIONS=true）
 users      (id, username UNIQUE, password_hash, created_at, updated_at)
 sessions   (token PK, user_id FK, expires_at, created_at)
 settings   (key PK, value, updated_at)        -- 配置 KV
-coins      (id, symbol UNIQUE, name, gate_pair, gate_slug, cg_id, sort_order, enabled, created_at, updated_at)
+coins      (id, symbol UNIQUE, name, gate_pair, gate_slug, binance_pair, cg_id, sort_order, enabled, created_at, updated_at)
 reports    (id, triggered_by, success, total_coins, ok_coins, tg_sent, feishu_sent, message, summary, created_at)
 ```

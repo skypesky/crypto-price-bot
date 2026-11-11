@@ -158,13 +158,19 @@ async function fetchWithRetry<T>(
       return await doFetch<T>(url, init, opts, dispatcher);
     } catch (err) {
       lastErr = err;
+      // 4xx（除 408/429）是客户端错误，重试没有意义 → 直接抛出，交给调用方按状态码降级。
+      if (err instanceof HttpError && err.status && err.status < 500 && err.status !== 408 && err.status !== 429) {
+        throw err;
+      }
       if (attempt < retries) {
         await sleep(500 * (attempt + 1));
       }
     }
   }
+  // 保留最后一次错误的 status：调用方常按 4xx/5xx 区分「数据不存在」和「服务端故障」
   throw new HttpError(
     `fetch failed after ${retries + 1} attempts: ${(lastErr as Error).message}`,
+    lastErr instanceof HttpError ? lastErr.status : undefined,
   );
 }
 

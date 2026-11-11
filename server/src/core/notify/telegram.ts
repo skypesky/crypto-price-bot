@@ -1,5 +1,6 @@
 import { httpPost, HttpError } from '../../util/http.js';
 import { getConfig } from '../config.js';
+import { splitMessage } from '../message/split.js';
 
 export interface TelegramSendResult {
   ok: boolean;
@@ -7,26 +8,37 @@ export interface TelegramSendResult {
   description?: string;
 }
 
+/** Telegram 单条消息的字符上限是 4096，这里留一点余量。 */
+const TG_MAX_CHARS = 3800;
+
 export async function sendToTG(message: string): Promise<TelegramSendResult> {
   const cfg = getConfig();
   if (!cfg.tg_bot_token || !cfg.tg_chat_id) {
     return { ok: false, error: 'telegram not configured (tg_bot_token / tg_chat_id missing)' };
   }
   const url = `https://api.telegram.org/bot${cfg.tg_bot_token}/sendMessage`;
+  // 完整报告可能超过 Telegram 的单条上限 → 按段落拆成多条依次发送
+  const parts = splitMessage(message, TG_MAX_CHARS);
   try {
-    const res = await httpPost<{ ok: boolean; description?: string }>(url, {
-      chat_id: cfg.tg_chat_id,
-      text: message,
-      parse_mode: 'Markdown',
-      disable_web_page_preview: true,
-    }, {
-      timeoutMs: cfg.request_timeout_ms,
-      retries: cfg.max_retries,
-      headers: { 'User-Agent': cfg.ua },
-      doh: cfg.doh_enabled ? { endpoint: `https://${cfg.doh_server}/dns-query`, bypass: new Set(cfg.doh_bypass) } : null,
-    });
-    if (!res.data.ok) {
-      return { ok: false, error: 'telegram api returned ok=false', description: res.data.description };
+    for (const [i, part] of parts.entries()) {
+      const res = await httpPost<{ ok: boolean; description?: string }>(url, {
+        chat_id: cfg.tg_chat_id,
+        text: part,
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+      }, {
+        timeoutMs: cfg.request_timeout_ms,
+        retries: cfg.max_retries,
+        headers: { 'User-Agent': cfg.ua },
+        doh: cfg.doh_enabled ? { endpoint: `https://${cfg.doh_server}/dns-query`, bypass: new Set(cfg.doh_bypass) } : null,
+      });
+      if (!res.data.ok) {
+        return {
+          ok: false,
+          error: `telegram api returned ok=false (part ${i + 1}/${parts.length})`,
+          description: res.data.description,
+        };
+      }
     }
     return { ok: true };
   } catch (err) {

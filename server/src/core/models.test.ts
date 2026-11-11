@@ -15,7 +15,7 @@ beforeAll(() => {
     CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE);
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);
-    CREATE TABLE coins (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT UNIQUE NOT NULL, name TEXT NOT NULL, gate_pair TEXT, gate_slug TEXT, binance_slug TEXT, cg_id TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, alert_above REAL, alert_below REAL, last_price REAL, last_alert_at INTEGER NOT NULL DEFAULT 0, last_alert_dir TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE coins (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT UNIQUE NOT NULL, name TEXT NOT NULL, gate_pair TEXT, gate_slug TEXT, binance_pair TEXT, cg_id TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1, alert_above REAL, alert_below REAL, last_price REAL, last_alert_at INTEGER NOT NULL DEFAULT 0, last_alert_dir TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE reports (id INTEGER PRIMARY KEY AUTOINCREMENT, triggered_by TEXT NOT NULL, success INTEGER NOT NULL, total_coins INTEGER NOT NULL, ok_coins INTEGER NOT NULL, tg_sent INTEGER NOT NULL, feishu_sent INTEGER NOT NULL, message TEXT NOT NULL, summary TEXT NOT NULL, created_at INTEGER NOT NULL);
   `);
   setDb(customDb);
@@ -96,8 +96,24 @@ describe('coin model', () => {
   it('initDefaultCoins + list', () => {
     coin.initDefaultCoins();
     const list = coin.listCoins();
-    expect(list.length).toBe(10);
-    expect(list[0]?.symbol).toBe('BTC');
+    expect(list.length).toBe(11);
+    // QNT 是用户主要买卖的币 → 默认排在第一个
+    expect(list[0]?.symbol).toBe('QNT');
+  });
+
+  // 新增监控币种：QNT (Quant) —— 用户主要买卖的币，排在列表第一位
+  // - gate.io 现货 QNT_USDT 与永续合约 QNT_USDT 均存在
+  // - 币安现货有 QNT_USDT 交易对
+  it('QNT 已纳入默认监控、字段正确且排第一位', () => {
+    const found = coin.DEFAULT_COINS.find((c) => c.symbol === 'QNT');
+    expect(found, '缺少 QNT').toBeDefined();
+    expect(found!.name).toBe('Quant');
+    expect(found!.gate_pair).toBe('QNT_USDT');
+    expect(found!.gate_slug).toBe('quant');
+    expect(found!.binance_pair).toBe('QNT_USDT');
+    expect(found!.cg_id).toBe('quant-network');
+    expect(found!.enabled).toBe(1);
+    expect(found!.sort_order).toBe(0);
   });
 
   // gate.com slug 回归测试：
@@ -131,7 +147,7 @@ describe('coin model', () => {
 
   // 新增监控币种：HYPE (Hyperliquid)
   // - gate.io USDT 交易对实测存在且 tradable，1d K 线有 400 根（够算 MA365）
-  // - Gate / 币安价格页 slug 均为 hyperliquid（/price/hyperliquid-hype、/price/hyperliquid）
+  // - 币安现货有 HYPE_USDT 交易对（/zh-CN/trade/HYPE_USDT?type=spot）
   // - CoinGecko ID 通过官方 API 确认（id=hyperliquid, symbol=hype）
   it('HYPE 已纳入默认监控且各字段正确', () => {
     const found = coin.DEFAULT_COINS.find((c) => c.symbol === 'HYPE');
@@ -139,46 +155,44 @@ describe('coin model', () => {
     expect(found!.name).toBe('Hyperliquid');
     expect(found!.gate_pair).toBe('HYPE_USDT');
     expect(found!.gate_slug).toBe('hyperliquid');
-    expect(found!.binance_slug).toBe('hyperliquid');
+    expect(found!.binance_pair).toBe('HYPE_USDT');
     expect(found!.cg_id).toBe('hyperliquid');
     expect(found!.enabled).toBe(1);
   });
 
-  // binance_slug 回归测试：
-  // - BNB 在 cg_id 是 'binancecoin'，但币安自家用 'bnb'，所以必须独立字段
-  // - GT 是 gate.io 自己的币，币安未上架，binance_slug 必须为 null
+  // binance_pair 回归测试（币安现货交易对）：
+  // - 只列币安现货确实有 USDT 交易对的币
+  // - USDT / ABT / GT 币安现货没有对应交易对 → 必须为 null（不显示币安链接）
   it.each([
-    ['BTC',  'bitcoin'],
-    ['ETH',  'ethereum'],
-    ['USDT', 'tether'],
-    ['SOL',  'solana'],
-    ['ABT',  'arcblock'],
-    ['BNB',  'bnb'],
-    ['YGG',  'yield-guild-games'],
-    ['SAGA', 'saga'],
-  ])('%s 默认 binance_slug = %s', (symbol, expectedSlug) => {
+    ['BTC',  'BTC_USDT'],
+    ['ETH',  'ETH_USDT'],
+    ['SOL',  'SOL_USDT'],
+    ['BNB',  'BNB_USDT'],
+    ['YGG',  'YGG_USDT'],
+    ['SAGA', 'SAGA_USDT'],
+  ])('%s 默认 binance_pair = %s', (symbol, expectedPair) => {
     const found = coin.DEFAULT_COINS.find((c) => c.symbol === symbol);
     expect(found).toBeDefined();
-    expect(found!.binance_slug).toBe(expectedSlug);
+    expect(found!.binance_pair).toBe(expectedPair);
   });
 
-  it('GT 默认 binance_slug 为 null（币安未上架）', () => {
-    const found = coin.DEFAULT_COINS.find((c) => c.symbol === 'GT');
+  it.each(['USDT', 'ABT', 'GT'])('%s 默认 binance_pair 为 null（币安现货没有该交易对）', (symbol) => {
+    const found = coin.DEFAULT_COINS.find((c) => c.symbol === symbol);
     expect(found).toBeDefined();
-    expect(found!.binance_slug).toBeNull();
+    expect(found!.binance_pair).toBeNull();
   });
 
   it('CRUD', () => {
     const c = coin.createCoin({
-      symbol: 'TEST', name: '测试币', gate_pair: 'TEST_USDT', gate_slug: 'test', binance_slug: 'test', cg_id: 'test', sort_order: 99, enabled: 1,
+      symbol: 'TEST', name: '测试币', gate_pair: 'TEST_USDT', gate_slug: 'test', binance_pair: 'TEST_USDT', cg_id: 'test', sort_order: 99, enabled: 1,
     });
     expect(c.id).toBeGreaterThan(0);
     expect(c.gate_slug).toBe('test');
-    expect(c.binance_slug).toBe('test');
-    const updated = coin.updateCoin(c.id, { name: '改名', gate_slug: 'renamed', binance_slug: null });
+    expect(c.binance_pair).toBe('TEST_USDT');
+    const updated = coin.updateCoin(c.id, { name: '改名', gate_slug: 'renamed', binance_pair: null });
     expect(updated?.name).toBe('改名');
     expect(updated?.gate_slug).toBe('renamed');
-    expect(updated?.binance_slug).toBeNull();
+    expect(updated?.binance_pair).toBeNull();
     expect(coin.deleteCoin(c.id)).toBe(true);
   });
 
@@ -205,7 +219,7 @@ describe('coin model', () => {
       expect(hype!.name).toBe('Hyperliquid');
       expect(hype!.gate_pair).toBe('HYPE_USDT');
       expect(hype!.gate_slug).toBe('hyperliquid');
-      expect(hype!.binance_slug).toBe('hyperliquid');
+      expect(hype!.binance_pair).toBe('HYPE_USDT');
       expect(hype!.cg_id).toBe('hyperliquid');
       expect(hype!.enabled).toBe(1);
     });
@@ -236,6 +250,19 @@ describe('coin model', () => {
       expect(after.name).toBe('我的HYPE');
       expect(after.enabled).toBe(0);
       expect(after.alert_above).toBe(999);
+    });
+
+    it('置顶币 QNT：存量库缺 QNT → 补插后排在列表最前', () => {
+      getDb().prepare(`DELETE FROM coins WHERE symbol = 'QNT'`).run();
+      expect(coin.listCoins().some(c => c.symbol === 'QNT')).toBe(false);
+
+      coin.syncAddedDefaultCoins();
+
+      const list = coin.listCoins();
+      expect(list[0]?.symbol).toBe('QNT');
+      // 其余币的相对顺序不变（QNT 只是插到最前，没有打乱别人）
+      const rest = list.filter(c => c.symbol !== 'QNT').map(c => c.symbol);
+      expect(rest).toEqual(['BTC', 'ETH', 'USDT', 'SOL', 'ABT', 'BNB', 'GT', 'YGG', 'SAGA', 'HYPE']);
     });
   });
 

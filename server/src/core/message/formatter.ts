@@ -82,7 +82,7 @@ export function messageToFeishuCard(message: string, opts?: FeishuCardOptions): 
 
   type CoinBlock = {
     content: string;
-    links: { gate: string; binance: string | null; coingecko: string };
+    links: { gate: string; binance: string | null; coinglass: string; coingecko: string };
   };
   const coinBlocks: CoinBlock[] = [];
   const trailerSections: string[] = [];
@@ -113,6 +113,7 @@ export function messageToFeishuCard(message: string, opts?: FeishuCardOptions): 
     if (c.links.binance) {
       buttons.push({ tag: 'button', text: { tag: 'plain_text', content: 'Binance' }, type: 'default', url: c.links.binance });
     }
+    buttons.push({ tag: 'button', text: { tag: 'plain_text', content: 'CoinGlass' }, type: 'default', url: c.links.coinglass });
     buttons.push({ tag: 'button', text: { tag: 'plain_text', content: 'CoinGecko' }, type: 'default', url: c.links.coingecko });
     // 飞书 schema：按钮容器 tag 必须是 "action"（单数），数组字段名才是 "actions"（复数）。
     // 用 "actions"（复数）会被飞书 API 拒绝：ErrCode 11310 "unsupported type of block"。
@@ -157,11 +158,11 @@ export function messageToFeishuCard(message: string, opts?: FeishuCardOptions): 
  */
 function parseCoinSection(section: string): {
   content: string;
-  links: { gate: string; binance: string | null; coingecko: string };
+  links: { gate: string; binance: string | null; coinglass: string; coingecko: string };
 } | null {
   const lines = section.split('\n');
   const contentLines: string[] = [];
-  const links: { gate?: string; binance?: string | null; coingecko?: string } = {};
+  const links: { gate?: string; binance?: string | null; coinglass?: string; coingecko?: string } = {};
 
   for (const line of lines) {
     if (line.trim().startsWith('🔗')) {
@@ -171,6 +172,7 @@ function parseCoinSection(section: string): {
         const [, label, url] = m;
         if (label === 'Gate') links.gate = url;
         else if (label === 'Binance') links.binance = url;
+        else if (label === 'CoinGlass') links.coinglass = url;
         else if (label === 'CoinGecko') links.coingecko = url;
       }
       continue;
@@ -178,7 +180,7 @@ function parseCoinSection(section: string): {
     contentLines.push(line);
   }
 
-  if (!links.gate || !links.coingecko) return null;
+  if (!links.gate || !links.coinglass || !links.coingecko) return null;
 
   // Telegram 风格 `*X*` → 飞书 markdown 加粗 `**X**`。负向断言避免误伤 `**X**`。
   // 飞书 markdown 组件不支持行内单反引号（inline code，只支持 ``` 代码块），
@@ -189,6 +191,11 @@ function parseCoinSection(section: string): {
 
   return {
     content,
-    links: { gate: links.gate, binance: links.binance ?? null, coingecko: links.coingecko },
+    links: {
+      gate: links.gate,
+      binance: links.binance ?? null,
+      coinglass: links.coinglass,
+      coingecko: links.coingecko,
+    },
   };
 }

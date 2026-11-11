@@ -93,7 +93,7 @@ const SAMPLE_REPORT = `📊 *加密货币价格报告 (含技术指标) from loc
 
 🔹 *比特币* (BTC)
    💵 \`$50,000.00(¥360,000.00)[汇率: 7.20]\`
-   🔗 [Gate](https://www.gate.com/zh/price/bitcoin-btc) | [Binance](https://www.binance.com/zh-CN/price/bitcoin/) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
+   🔗 [Gate](https://www.gate.com/zh/trade/BTC_USDT) | [Binance](https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot) | [CoinGlass](https://www.coinglass.com/zh/currencies/BTC) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
 
 ⏰ 更新时间: 2026/9/17 00:00:00
 ⚠️ MA（移动平均线）仅供参考，不构成投资建议`;
@@ -118,7 +118,7 @@ describe('sendToFeishu webhook 卡片化', () => {
     expect(body.card).toBeTruthy();
 
     const actions = body.card!.elements.find(e => e.tag === 'action');
-    expect(actions?.actions?.map(a => a.text.content)).toEqual(['Gate', 'Binance', 'CoinGecko']);
+    expect(actions?.actions?.map(a => a.text.content)).toEqual(['Gate', 'Binance', 'CoinGlass', 'CoinGecko']);
     expect(actions?.actions?.every(a => a.url?.startsWith('http'))).toBe(true);
   });
 

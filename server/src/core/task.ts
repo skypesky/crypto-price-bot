@@ -1,6 +1,8 @@
 import { getGateTicker } from './gate/ticker.js';
-import { getGateKlines } from './gate/klines.js';
+import { getGateCandles, getGateCandlesByInterval, type GateCandle } from './gate/klines.js';
+import { getGateDerivatives, type GateDerivatives } from './gate/futures.js';
 import { getUsdtToCnyRate } from './gate/fx.js';
+import { analyzeTrend } from './analysis/trend-report.js';
 import { buildIndicators, buildMessage, type CoinResult } from './message/builder.js';
 import { sendToTG } from './notify/telegram.js';
 import { sendToFeishu } from './notify/feishu.js';
@@ -25,18 +27,38 @@ export interface TaskRunResult {
 
 async function fetchOne(coin: Coin): Promise<CoinResult> {
   if (!coin.gate_pair) {
-    return { coin, ticker: { last: '1.0' }, indicators: null, source: 'stable' };
+    return { coin, ticker: { last: '1.0' }, indicators: null, analysis: null, source: 'stable' };
   }
   try {
-    const [ticker, closes] = await Promise.all([
+    const [ticker, candles] = await Promise.all([
       getGateTicker(coin.gate_pair),
-      getGateKlines(coin.gate_pair, 365),
+      getGateCandles(coin.gate_pair, 365),
     ]);
     const currentPrice = Number(ticker.last);
+    const indicators = buildIndicators(candles.map((c) => c.close), currentPrice);
+    // 周线 / 月线：拉失败只降级该周期（研判里显示「数据不足」），不影响价格侧报告
+    const [weekly, monthly] = await Promise.all([
+      getGateCandlesByInterval(coin.gate_pair, '7d', 120).catch((err: Error) => {
+        log.warn(`${coin.symbol} gate.io 周线失败: ${err.message}`);
+        return [] as GateCandle[];
+      }),
+      getGateCandlesByInterval(coin.gate_pair, '30d', 60).catch((err: Error) => {
+        log.warn(`${coin.symbol} gate.io 月线失败: ${err.message}`);
+        return [] as GateCandle[];
+      }),
+    ]);
+    // 合约情绪单独拉：失败/没有永续合约时降级为 null，不影响价格侧报告
+    let derivatives: GateDerivatives | null = null;
+    try {
+      derivatives = await getGateDerivatives(coin.gate_pair, 7);
+    } catch (err) {
+      log.warn(`${coin.symbol} gate.io 合约统计失败: ${(err as Error).message}`);
+    }
     return {
       coin,
       ticker: { last: ticker.last, change_percentage: ticker.change_percentage },
-      indicators: buildIndicators(closes, currentPrice),
+      indicators,
+      analysis: analyzeTrend({ current: currentPrice, candles, weekly, monthly, indicators, derivatives }),
       source: 'gate',
     };
   } catch (err) {
@@ -45,6 +67,7 @@ async function fetchOne(coin: Coin): Promise<CoinResult> {
       coin,
       ticker: null,
       indicators: null,
+      analysis: null,
       source: 'failed',
       error: (err as Error).message,
     };

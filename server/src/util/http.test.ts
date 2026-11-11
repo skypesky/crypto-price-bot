@@ -62,6 +62,24 @@ describe('httpGet', () => {
     const res = await httpGet(`${baseUrl}/ok`, { retries: 0, headers: { 'X-Test': 'yes' } });
     expect(res.status).toBe(200);
   });
+
+  it('4xx 不重试：直接抛错且保留 status', async () => {
+    requestCount = 0;
+    // 未注册的路径 → 404。404 是客户端错误，重试没有意义 → 只请求一次。
+    await expect(httpGet(`${baseUrl}/not-exist`, { retries: 3 })).rejects.toThrow(/HTTP 404/);
+    expect(requestCount).toBe(1);
+  });
+
+  it('4xx 抛出的 HttpError 带 status（调用方据此区分"没有这个数据"）', async () => {
+    requestCount = 0;
+    try {
+      await httpGet(`${baseUrl}/not-exist`, { retries: 0 });
+      expect.unreachable('应该抛错');
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).status).toBe(404);
+    }
+  });
 });
 
 describe('httpPost', () => {

@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS coins (
   name           TEXT    NOT NULL,
   gate_pair      TEXT,
   gate_slug      TEXT,
-  binance_slug   TEXT,                 -- 币安价格页 slug（如 bitcoin / bnb）。币安不上的币留 NULL
+  binance_pair   TEXT,                 -- 币安现货交易对（如 BTC_USDT）。币安现货没这个交易对的币留 NULL
   cg_id          TEXT    NOT NULL,
   sort_order     INTEGER NOT NULL DEFAULT 0,
   enabled        INTEGER NOT NULL DEFAULT 1,
@@ -101,18 +101,16 @@ const GATE_SLUG_BY_SYMBOL: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
   ABT: 'arcblock', BNB: 'bnb',
   GT: 'gate', YGG: 'yieldguildgames', SAGA: 'saga',
-  HYPE: 'hyperliquid',
+  HYPE: 'hyperliquid', QNT: 'quant',
 };
 
-/** 默认币种 → binance.com 价格页 slug（用于现有 DB 回填 binance_slug）。
- *  币安价格页 URL 形如 `https://www.binance.com/zh-CN/price/{slug}/`。
- *  注意：BNB 在 cg_id 是 `binancecoin`，但币安自家用 `bnb`，所以必须独立字段，不能直接复用 cg_id。
- *  币安未上架的币（GT）不列入，迁移后 binance_slug 保持 NULL，报告里也不显示币安链接。 */
-const BINANCE_SLUG_BY_SYMBOL: Record<string, string> = {
-  BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
-  ABT: 'arcblock', BNB: 'bnb',
-  YGG: 'yield-guild-games', SAGA: 'saga',
-  HYPE: 'hyperliquid',
+/** 默认币种 → 币安现货交易对（用于现有 DB 回填 binance_pair）。
+ *  币安现货交易页 URL 形如 `https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot`。
+ *  只有币安现货确实有该交易对的币才列入；USDT（无 USDT/USDT 市场）、
+ *  ABT / GT（币安现货未上架）不列入，迁移后 binance_pair 保持 NULL，报告里也不显示币安链接。 */
+const BINANCE_PAIR_BY_SYMBOL: Record<string, string> = {
+  BTC: 'BTC_USDT', ETH: 'ETH_USDT', SOL: 'SOL_USDT', BNB: 'BNB_USDT',
+  YGG: 'YGG_USDT', SAGA: 'SAGA_USDT', HYPE: 'HYPE_USDT', QNT: 'QNT_USDT',
 };
 
 /** 已知坏 slug → 新 slug。
@@ -131,8 +129,13 @@ function migrate(db: Database.Database): void {
   if (!colNames.has('gate_slug')) {
     db.exec(`ALTER TABLE coins ADD COLUMN gate_slug TEXT`);
   }
-  if (!colNames.has('binance_slug')) {
-    db.exec(`ALTER TABLE coins ADD COLUMN binance_slug TEXT`);
+  if (!colNames.has('binance_pair')) {
+    db.exec(`ALTER TABLE coins ADD COLUMN binance_pair TEXT`);
+  }
+  // 老库的 binance_slug 只服务于币安价格页 URL（/price/{slug}/），
+  // 链接已改成现货交易页（/trade/{pair}）→ 该列不再被任何代码读取，直接删掉。
+  if (colNames.has('binance_slug')) {
+    db.exec(`ALTER TABLE coins DROP COLUMN binance_slug`);
   }
   // 价格预警字段（独立 ALTER 以兼容 v2.0 之前没这些列的旧库）
   if (!colNames.has('alert_above')) {
@@ -155,10 +158,10 @@ function migrate(db: Database.Database): void {
   for (const [symbol, slug] of Object.entries(GATE_SLUG_BY_SYMBOL)) {
     upd.run(slug, symbol);
   }
-  // 回填现有币种的 binance_slug（仅当为空时）。币安未上架的币不列入，binance_slug 保持 NULL。
-  const updBinance = db.prepare(`UPDATE coins SET binance_slug = ? WHERE symbol = ? AND (binance_slug IS NULL OR binance_slug = '')`);
-  for (const [symbol, slug] of Object.entries(BINANCE_SLUG_BY_SYMBOL)) {
-    updBinance.run(slug, symbol);
+  // 回填现有币种的 binance_pair（仅当为空时）。币安现货没这个交易对的币不列入，保持 NULL。
+  const updBinance = db.prepare(`UPDATE coins SET binance_pair = ? WHERE symbol = ? AND (binance_pair IS NULL OR binance_pair = '')`);
+  for (const [symbol, pair] of Object.entries(BINANCE_PAIR_BY_SYMBOL)) {
+    updBinance.run(pair, symbol);
   }
   // 修复已知坏 slug → 新 slug。
   // 只对白名单里的 (symbol, oldSlug) 组合生效：用户手动编辑过的 slug 不会被覆盖，

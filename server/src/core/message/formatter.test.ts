@@ -53,19 +53,19 @@ const SAMPLE_REPORT = `📊 *加密货币价格报告 (含技术指标) from loc
    MA90:  📈 $45,000.00(¥324,000.00) (偏高)
    MA180: 📈 $40,000.00(¥288,000.00) (偏高)
    MA365: 📈 $30,000.00(¥216,000.00) (偏高)
-   🔗 [Gate](https://www.gate.com/zh/price/bitcoin-btc) | [Binance](https://www.binance.com/zh-CN/price/bitcoin/) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
+   🔗 [Gate](https://www.gate.com/zh/trade/BTC_USDT) | [Binance](https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot) | [CoinGlass](https://www.coinglass.com/zh/currencies/BTC) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
 
 ⏰ 更新时间: 2026/9/17 00:00:00
 ⚠️ MA（移动平均线）仅供参考，不构成投资建议
 数据展示以 CoinGecko 数据为准`;
 
-// binance_slug=null 的币种报告（只有 Gate + CoinGecko 两个链接）
+// binance_pair=null 的币种报告（只有 Gate + CoinGlass + CoinGecko 三个链接）
 const SAMPLE_GT_REPORT = `📊 *加密货币价格报告 (含技术指标) from local*
 
 🔹 *Gate* (GT)
    💵 \`$9.00(¥63.00)[汇率: 7.00]\`
    📈 趋势数据暂时不可用
-   🔗 [Gate](https://www.gate.com/zh/price/gate-gt) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
+   🔗 [Gate](https://www.gate.com/zh/trade/GT_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/GT) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
 
 ⏰ 更新时间: 2026/9/17 00:00:00
 ⚠️ MA（移动平均线）仅供参考，不构成投资建议
@@ -113,25 +113,31 @@ describe('messageToFeishuCard', () => {
       expect(md.content).toContain('MA7:');
     }
 
-    // 第 2 个：action 按钮容器（3 个按钮）。飞书 schema：容器 tag 必须是 "action"（单数），
+    // 第 2 个：action 按钮容器（4 个按钮）。飞书 schema：容器 tag 必须是 "action"（单数），
     // 数组字段名才是 "actions"。复数 tag 会触发 "unsupported type of block; ErrorValue: actions"。
     const actions = card.card.elements[1];
     expect(actions.tag).toBe('action');
     if (actions.tag === 'action') {
-      expect(actions.actions).toHaveLength(3);
+      expect(actions.actions).toHaveLength(4);
       expect(actions.actions[0]).toMatchObject({
         tag: 'button',
         text: { tag: 'plain_text', content: 'Gate' },
         type: 'primary',
-        url: 'https://www.gate.com/zh/price/bitcoin-btc',
+        url: 'https://www.gate.com/zh/trade/BTC_USDT',
       });
       expect(actions.actions[1]).toMatchObject({
         tag: 'button',
         text: { tag: 'plain_text', content: 'Binance' },
         type: 'default',
-        url: 'https://www.binance.com/zh-CN/price/bitcoin/',
+        url: 'https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot',
       });
       expect(actions.actions[2]).toMatchObject({
+        tag: 'button',
+        text: { tag: 'plain_text', content: 'CoinGlass' },
+        type: 'default',
+        url: 'https://www.coinglass.com/zh/currencies/BTC',
+      });
+      expect(actions.actions[3]).toMatchObject({
         tag: 'button',
         text: { tag: 'plain_text', content: 'CoinGecko' },
         type: 'default',
@@ -149,7 +155,7 @@ describe('messageToFeishuCard', () => {
     }
   });
 
-  it('binance_slug 为空时只渲染 Gate + CoinGecko 两个按钮', () => {
+  it('binance_pair 为空时只渲染 Gate + CoinGlass + CoinGecko 三个按钮', () => {
     const card = messageToFeishuCard(SAMPLE_GT_REPORT);
     expect(card).not.toBeNull();
     if (!card) return;
@@ -157,8 +163,8 @@ describe('messageToFeishuCard', () => {
     const actions = card.card.elements[1];
     expect(actions.tag).toBe('action');
     if (actions.tag === 'action') {
-      expect(actions.actions).toHaveLength(2);
-      expect(actions.actions.map(a => a.text.content)).toEqual(['Gate', 'CoinGecko']);
+      expect(actions.actions).toHaveLength(3);
+      expect(actions.actions.map(a => a.text.content)).toEqual(['Gate', 'CoinGlass', 'CoinGecko']);
       // 没有 Binance 按钮
       expect(actions.actions.find(a => a.text.content === 'Binance')).toBeUndefined();
     }
@@ -178,11 +184,11 @@ describe('messageToFeishuCard', () => {
 
 🔹 *比特币* (BTC)
    💵 \`$50,000.00(¥360,000.00)[汇率: 7.20]\`
-   🔗 [Gate](https://www.gate.com/zh/price/bitcoin-btc) | [Binance](https://www.binance.com/zh-CN/price/bitcoin/) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
+   🔗 [Gate](https://www.gate.com/zh/trade/BTC_USDT) | [Binance](https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot) | [CoinGlass](https://www.coinglass.com/zh/currencies/BTC) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
 
 🔹 *Gate* (GT)
    💵 \`$9.00(¥63.00)[汇率: 7.00]\`
-   🔗 [Gate](https://www.gate.com/zh/price/gate-gt) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
+   🔗 [Gate](https://www.gate.com/zh/trade/GT_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/GT) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
 
 ⏰ 更新时间: 2026/9/17 00:00:00
 ⚠️ MA（移动平均线）仅供参考`;
@@ -200,9 +206,9 @@ describe('messageToFeishuCard', () => {
     expect(card.card.elements[5].tag).toBe('markdown');
     expect(card.card.elements[6].tag).toBe('action');
 
-    // 第一个币种 3 个按钮，第二个币种 2 个按钮
-    expect((card.card.elements[1] as { actions: unknown[] }).actions).toHaveLength(3);
-    expect((card.card.elements[4] as { actions: unknown[] }).actions).toHaveLength(2);
+    // 第一个币种 4 个按钮，第二个币种 3 个按钮
+    expect((card.card.elements[1] as { actions: unknown[] }).actions).toHaveLength(4);
+    expect((card.card.elements[4] as { actions: unknown[] }).actions).toHaveLength(3);
   });
 
   it('非完整报告（价格预警等）返回 null', () => {
@@ -237,11 +243,11 @@ describe('messageToFeishuCard', () => {
     );
     expect(queryBtn).toBeUndefined();
 
-    // 但 Gate / Binance / CoinGecko 的 url 按钮仍在
+    // 但 Gate / Binance / CoinGlass / CoinGecko 的 url 按钮仍在
     const actions = card.card.elements.find(e => e.tag === 'action');
     expect(actions?.tag).toBe('action');
     if (actions?.tag !== 'action') return;
-    expect(actions.actions.map(a => a.text.content)).toEqual(['Gate', 'Binance', 'CoinGecko']);
+    expect(actions.actions.map(a => a.text.content)).toEqual(['Gate', 'Binance', 'CoinGlass', 'CoinGecko']);
     expect(actions.actions.every(a => typeof a.url === 'string' && a.url.startsWith('http'))).toBe(true);
   });
 

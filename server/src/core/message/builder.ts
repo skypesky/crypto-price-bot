@@ -1,4 +1,5 @@
 import type { Coin } from '../models/coin.js';
+import type { TrendAnalysis } from '../analysis/trend-report.js';
 import { calculateMA } from '../indicators/ma.js';
 import { calculateTrend } from '../indicators/trend.js';
 import { getConfig } from '../config.js';
@@ -19,6 +20,8 @@ export interface CoinResult {
     trend180d: number | null;
     trend1y: number | null;
   } | null;
+  /** 趋势研判（短线/中线/长线 + 合约情绪与结论） */
+  analysis?: TrendAnalysis | null;
   error?: string;
   source: 'gate' | 'stable' | 'failed';
 }
@@ -30,15 +33,16 @@ function formatTrend(trend: number | null): string {
   return `${trend}%`;
 }
 
+/**
+ * 均线行：`MA7:  < $75,076.36(¥500,008.54)` —— 前缀符号表示现价与均线的相对位置，
+ * 读法与「现价 < MA7」一致：< = 现价在均线下方，> = 现价在均线上方，= = 持平。
+ */
 function formatMA(ma: number | null, current: number, usdtToCny: number): string {
   if (ma === null) return 'N/A';
-  const ratio = current / ma;
   const cny = (ma * usdtToCny).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  // 美元在前、人民币括注（与价格行一致，但不带汇率标注 —— 汇率已在价格行给出）
   const price = `$${ma.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}(¥${cny})`;
-  if (ratio > 1.1) return `📈 ${price} (偏高)`;
-  if (ratio < 0.9) return `📉 ${price} (偏低)`;
-  return `➡️ ${price}`;
+  const sign = current > ma ? '>' : current < ma ? '<' : '=';
+  return `${sign} ${price}`;
 }
 
 export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date; trigger?: 'local' | 'ci'; fxSource?: 'live' | 'cache' | 'fallback' }): string {
@@ -52,7 +56,7 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
   const fxMarker = fxSource === 'fallback' ? ' ⚠️汇率兜底' : '';
   let msg = `📊 *加密货币价格报告 (含技术指标) from ${trigger}${fxMarker}*\n\n`;
   for (const r of results) {
-    const { coin, ticker, indicators } = r;
+    const { coin, ticker, indicators, analysis } = r;
     if (!ticker) {
       msg += `🔹 *${coin.name}* (${coin.symbol})\n   ⚠️ 数据获取失败\n\n`;
       continue;
@@ -77,9 +81,34 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
     } else {
       msg += `   📈 趋势数据暂时不可用\n`;
     }
-    const { gate: gateUrl, binance: binanceUrl, coingecko: cgUrl } = buildCoinLinks(coin);
+    if (analysis) {
+      msg += `   ──────── 🧭 趋势研判 ────────\n`;
+      const periodLines: Array<[string, string]> = [
+        [analysis.daily, analysis.insights.daily],
+        [analysis.weekly, analysis.insights.weekly],
+        [analysis.monthly, analysis.insights.monthly],
+        [analysis.yearly, analysis.insights.yearly],
+      ];
+      for (const [line, insight] of periodLines) {
+        msg += `   ${line}\n`;
+        if (insight) msg += `   解读：${insight}\n`;
+      }
+      if (analysis.sentiment.length) {
+        msg += `   ──────── 📊 合约情绪 ────────\n`;
+        for (const line of analysis.sentiment) msg += `   ${line}\n`;
+      }
+      if (analysis.futures.length) {
+        msg += `   ──────── 💰 合约资金 ────────\n`;
+        for (const line of analysis.futures) msg += `   ${line}\n`;
+      }
+      msg += `   ──────── 📌 结论 ────────\n`;
+      msg += `   ${analysis.summary}\n`;
+      msg += `   💡 操作建议：${analysis.advice}\n`;
+    }
+    const { gate: gateUrl, binance: binanceUrl, coinglass: cgGlassUrl, coingecko: cgUrl } = buildCoinLinks(coin);
     const links: string[] = [`[Gate](${gateUrl})`];
     if (binanceUrl) links.push(`[Binance](${binanceUrl})`);
+    links.push(`[CoinGlass](${cgGlassUrl})`);
     links.push(`[CoinGecko](${cgUrl})`);
     msg += `   🔗 ${links.join(' | ')}\n\n`;
   }
@@ -106,20 +135,27 @@ export function buildIndicators(closes: number[], currentPrice: number) {
 }
 
 /**
- * 生成单个币种的外部链接（Gate / Binance / CoinGecko）。
+ * 生成单个币种的外部链接（Gate / Binance / CoinGlass / CoinGecko）。
  * 抽出来便于测试 URL 形态；URL 改了/挂了就立刻在 build/test 时炸出来。
  */
-export function buildCoinLinks(coin: Coin): { gate: string; binance: string | null; coingecko: string } {
-  // gate.com 实际路径格式：`{name-slug}-{symbol}`，例如 bitcoin-btc / cosmos-hub-atom。
+export function buildCoinLinks(coin: Coin): { gate: string; binance: string | null; coinglass: string; coingecko: string } {
+  // Gate 现货交易页：`https://www.gate.com/zh/trade/{交易对}`，例如 BTC_USDT。
+  // 稳定币没有对应的现货市场（gate_pair 为空），回退到 Gate 价格页
+  // （`https://www.gate.com/zh/price/{name-slug}-{symbol}`，例如 tether-usdt）。
+  const gatePair = (coin.gate_pair && coin.gate_pair.trim()) ? coin.gate_pair.trim() : null;
   // 没有 gate_slug 的旧数据回退到 symbol（小写）。
   const slug = (coin.gate_slug && coin.gate_slug.trim())
     ? coin.gate_slug.toLowerCase()
     : coin.symbol.toLowerCase();
-  const gate = `https://www.gate.com/zh/price/${slug}-${coin.symbol.toLowerCase()}`;
-  // 币安价格页 URL：`https://www.binance.com/zh-CN/price/{slug}/`。
-  // binance_slug 为 NULL 时（币安未上架，例如 GT）返回 null，调用方负责跳过展示。
-  const binanceSlug = (coin.binance_slug && coin.binance_slug.trim()) ? coin.binance_slug.trim() : null;
-  const binance = binanceSlug ? `https://www.binance.com/zh-CN/price/${binanceSlug}/` : null;
+  const gate = gatePair
+    ? `https://www.gate.com/zh/trade/${gatePair}`
+    : `https://www.gate.com/zh/price/${slug}-${coin.symbol.toLowerCase()}`;
+  // 币安现货交易页：`https://www.binance.com/zh-CN/trade/{交易对}?type=spot`。
+  // binance_pair 为 NULL 时（币安现货没这个交易对，例如 ABT / GT / USDT）返回 null，调用方负责跳过展示。
+  const binancePair = (coin.binance_pair && coin.binance_pair.trim()) ? coin.binance_pair.trim() : null;
+  const binance = binancePair ? `https://www.binance.com/zh-CN/trade/${binancePair}?type=spot` : null;
+  // CoinGlass 币种页：`https://www.coinglass.com/zh/currencies/{SYMBOL}`，slug 就是币种 symbol。
+  const coinglass = `https://www.coinglass.com/zh/currencies/${coin.symbol.toUpperCase()}`;
   const coingecko = `https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/${encodeURIComponent(coin.cg_id)}`;
-  return { gate, binance, coingecko };
+  return { gate, binance, coinglass, coingecko };
 }

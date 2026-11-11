@@ -131,8 +131,9 @@
 **业务规则**:
 - `symbol`：1-16 位大写字母+数字
 - `name`：1-64 字符（中文友好）
-- `gate_pair`：形如 `BTC_USDT`，稳定币可空
-- `gate_slug`：小写字母/数字/连字符，决定 gate.com 链接
+- `gate_pair`：形如 `BTC_USDT`，稳定币可空；决定 gate.com 现货交易页链接
+- `gate_slug`：小写字母/数字/连字符；仅在 `gate_pair` 为空（稳定币）时用于 gate.com 价格页链接
+- `binance_pair`：形如 `BTC_USDT`，币安现货没有该交易对时可空（为空则报告不显示币安链接）
 - `cg_id`：CoinGecko 的币种 ID，必填
 - `enabled` / `sort_order` 整数，0/1 语义
 - 首启若 coins 表为空，自动插入 10 个默认币种（BTC/ETH/USDT/SOL/ABT/BNB/GT/YGG/SAGA/HYPE，FIL/ATOM/OP/ICX 已移除）
@@ -210,9 +211,12 @@
 - `GET /api/task/next` (auth) → `{ nextRunAt: ISOString | null }`
 
 **业务规则**:
-- 执行流程：listEnabledCoins → 并行 fetchOne(ticker + klines) → getUsdtToCnyRate → buildMessage → 并行 sendToTG/sendToFeishu → createReport
+- 执行流程：listEnabledCoins → 并行 fetchOne(ticker + klines + 合约统计) → getUsdtToCnyRate → buildMessage → 并行 sendToTG/sendToFeishu → createReport
 - 任一币种 ticker 失败不中断其他币种，最终 `okCoins > 0` 视为 success
 - TG / 飞书并行推送，任一通道失败不影响另一通道；都失败仍生成 report（success=false）
+- 趋势研判（`analysis/trend-report.ts`）：每个币在均线段之后追加 4 行 —
+  短线（7 天）/ 中线（30-90 天）/ 长线（半年-1 年）/ 合约情绪+结论；
+  数字口径直接复用 `buildIndicators` 的趋势值，与上方趋势行同源；合约数据缺失时只出结论不出情绪
 - `cron` 6 段（含秒），默认 `0 */30 * * * *`（每 30 分钟整点）
 - 时区默认 `Asia/Shanghai`，可改
 - 修改 `schedule_rule` / `timezone` 立即生效（config listener）
@@ -245,7 +249,7 @@
 **目标**: 从外部源（Gate.io / CoinGecko）拉数据；带超时、重试、DoH 兜底。
 **主要角色**: 系统
 **复杂度**: 中
-**核心功能**: ticker、klines、USDT/CNY 汇率
+**核心功能**: ticker、klines、合约情绪统计、USDT/CNY 汇率
 **关键依赖**: util/http（DoH + undici agent）、croner 不相关
 
 | ID    | 功能       | 子功能                              | 优先级 |
@@ -253,13 +257,17 @@
 | F8.1  | 实时行情   | gate.io /api/v4/spot/tickers SF8.1.1 | P0     |
 | F8.2  | 历史K线    | gate.io /api/v4/spot/candlesticks SF8.2.1 | P0     |
 | F8.3  | USDT/CNY   | CoinGecko simple/price + 1h 缓存 + fallback SF8.3.1 | P0     |
+| F8.4  | 合约情绪   | gate.io /api/v4/futures/usdt/contract_stats SF8.4.1 | P1     |
 
 **业务规则**:
 - 行情路径：`GET /api/v4/spot/tickers?currency_pair=XXX_USDT`，取首条
-- K线：`GET /api/v4/spot/candlesticks?interval=1d&limit=365`，按时间升序
+- K线：`GET /api/v4/spot/candlesticks?interval=1d&limit=365`，按时间升序（最后一根是今日，进行中）
+- 合约情绪：`GET /api/v4/futures/usdt/contract_stats?contract=XXX_USDT&interval=1d&limit=7`，
+  取资金费率 / 持仓量 / 账户多空比 / 多空爆仓额；该交易对没有永续合约时返回 400 → 降级为「无合约情绪」
 - USDT/CNY：缓存 1 小时；CoinGecko 失败时回落 `config.usdt_to_cny`
 - 稳定币（gate_pair=null）跳过拉取，ticker 视为 `{ last: '1.0' }`，source='stable'
 - HTTP 工具统一：`timeoutMs` + `retries` + 备用 DoH（飞书强制不走 DoH，因为 CDN 节点拒绝直连 IP）
+- 4xx 不重试（客户端错误重试无意义），且重试耗尽后仍保留 HttpError.status 供调用方降级
 
 ### M9 — 推送通知模块 (P0)
 
@@ -278,6 +286,8 @@
 
 **业务规则**:
 - TG：`https://api.telegram.org/bot{token}/sendMessage`；参数 `parse_mode=Markdown, disable_web_page_preview=true`
+- **TG 分段**：单条消息上限 4096 字符，而完整报告（10 币 × 趋势+均线+研判+链接）约 6000-9500 字符 →
+  `message/split.ts` 按空行（币种块边界）拆成多条依次发送，每条 ≤ 3800 字符
 - TG 未配置：返回 `{ ok: false, error: 'telegram not configured' }`，不抛异常
 - 飞书：`msg_type: text` + `content.text`；`normalizeMessageForTextChannel` 把 `[x](y)` 变 `x: y`，去 `*_`
 - 飞书 CDN 对 DoH 解析 IP 直连返回 403，因此飞书推送 **强制 doh=null**
@@ -350,7 +360,7 @@
 - [ ] **M9 推送**：TG Markdown 渲染正确；飞书纯文本无 markdown 字符；任一通道失败不影响另一通道
 - [ ] **M10 前端**：6 个页面在路由内可访问；登录态持久化 7 天；401 自动跳登录
 - [ ] **横切**：util/logger 环形缓冲 500 条；util/http DoH 兜底 1.1.1.1；http/middleware 鉴权白名单
-- [ ] **数据迁移**：旧 DB 无 `gate_slug` 时自动 ALTER 并回填 11 个默认币种
+- [ ] **数据迁移**：旧 DB 无 `gate_slug` 时自动 ALTER 并回填 11 个默认币种；无 `binance_pair` 时自动 ALTER 并回填（旧的 `binance_slug` 列被删除）
 - [ ] **部署**：Dockerfile 多阶段构建 < 200MB；非 root 运行；TZ=Asia/Shanghai
 
 ## 6. 备注
@@ -361,5 +371,5 @@
 - **已知限制**：
   - 飞书 Webhook 对 DoH 解析出的 CDN IP 直连返回 403，因此飞书推送强制走 undici 默认 DNS。
   - `doh_bypass` 默认含 `1.1.1.1 / one.one.one.one / cloudflare-dns.com`，避免 DoH 自身被污染。
-  - 旧版本 DB 缺 `gate_slug` 列，启动时自动迁移并按 symbol 回填。
+  - 旧版本 DB 缺 `gate_slug` 列，启动时自动迁移并按 symbol 回填；缺 `binance_pair` 列同样自动 ALTER 回填（旧的 `binance_slug` 列被删除）。
 - **依赖升级注意**：`croner` 仅支持 6 段 cron（含秒），迁移到 5 段需要先 `npx croner-trim`。

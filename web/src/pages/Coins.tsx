@@ -18,6 +18,7 @@ interface CoinForm {
   name: string;
   gate_pair: string | null;
   gate_slug: string | null;
+  binance_pair: string | null;
   cg_id: string;
   enabled: boolean;
   alert_above: number | null;
@@ -145,7 +146,7 @@ export function Coins() {
   const openAdd = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ enabled: true, gate_pair: '', gate_slug: '', alert_above: null, alert_below: null });
+    form.setFieldsValue({ enabled: true, gate_pair: '', gate_slug: '', binance_pair: '', alert_above: null, alert_below: null });
     setModalOpen(true);
   };
 
@@ -156,6 +157,7 @@ export function Coins() {
       name: c.name,
       gate_pair: c.gate_pair ?? '',
       gate_slug: c.gate_slug ?? '',
+      binance_pair: c.binance_pair ?? '',
       cg_id: c.cg_id,
       enabled: !!c.enabled,
       alert_above: c.alert_above,
@@ -171,6 +173,7 @@ export function Coins() {
       name: v.name,
       gate_pair: v.gate_pair && String(v.gate_pair).trim() ? String(v.gate_pair).toUpperCase() : null,
       gate_slug: v.gate_slug && String(v.gate_slug).trim() ? String(v.gate_slug).toLowerCase() : null,
+      binance_pair: v.binance_pair && String(v.binance_pair).trim() ? String(v.binance_pair).toUpperCase() : null,
       cg_id: v.cg_id,
       enabled: v.enabled,
       alert_above: v.alert_above ?? null,
@@ -239,6 +242,7 @@ export function Coins() {
     { title: '名称', dataIndex: 'name', key: 'name', width: 130 },
     { title: 'Gate Pair', dataIndex: 'gate_pair', key: 'gate_pair', render: (v: string | null) => v ? <code>{v}</code> : <span style={{ color: '#bfbfbf' }}>—</span> },
     { title: 'Gate Slug', dataIndex: 'gate_slug', key: 'gate_slug', render: (v: string | null) => v ? <code>{v}</code> : <span style={{ color: '#bfbfbf' }}>—</span> },
+    { title: 'Binance Pair', dataIndex: 'binance_pair', key: 'binance_pair', render: (v: string | null) => v ? <code>{v}</code> : <span style={{ color: '#bfbfbf' }}>—</span> },
     { title: 'CoinGecko ID', dataIndex: 'cg_id', key: 'cg_id', render: (v: string) => <code>{v}</code> },
     { title: '顺序', dataIndex: 'sort_order', key: 'sort_order', width: 64, align: 'right' },
     {
@@ -346,9 +350,18 @@ export function Coins() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="cg_id" label="CoinGecko ID" rules={[{ required: true }]}>
-            <Input placeholder="如 bitcoin" />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="binance_pair" label="Binance Pair" tooltip="如 BTC_USDT；币安现货没这个交易对就留空">
+                <Input placeholder="留空表示币安不显示该链接" />
               </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="cg_id" label="CoinGecko ID" rules={[{ required: true }]}>
+                <Input placeholder="如 bitcoin" />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item name="enabled" label="启用监控" valuePropName="checked" tooltip="停用后不会被定时任务抓取">
             <Switch />
           </Form.Item>
