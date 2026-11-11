@@ -32,6 +32,7 @@ export const DEFAULT_COINS: Array<Omit<Coin, 'id' | 'created_at' | 'updated_at' 
   { symbol: 'GT',   name: 'Gate',    gate_pair: 'GT_USDT',   gate_slug: 'gate',        binance_slug: null,               cg_id: 'gatechain-token', sort_order: 6, enabled: 1, alert_above: null, alert_below: null },
   { symbol: 'YGG',  name: 'Yield Guild Games', gate_pair: 'YGG_USDT',  gate_slug: 'yieldguildgames', binance_slug: 'yield-guild-games', cg_id: 'yield-guild-games', sort_order: 7, enabled: 1, alert_above: null, alert_below: null },
   { symbol: 'SAGA', name: 'Saga',              gate_pair: 'SAGA_USDT', gate_slug: 'saga',            binance_slug: 'saga',               cg_id: 'saga-2',            sort_order: 8, enabled: 1, alert_above: null, alert_below: null },
+  { symbol: 'HYPE', name: 'Hyperliquid',       gate_pair: 'HYPE_USDT', gate_slug: 'hyperliquid',     binance_slug: 'hyperliquid',        cg_id: 'hyperliquid',        sort_order: 9, enabled: 1, alert_above: null, alert_below: null },
 ];
 
 export function initDefaultCoins(): void {
@@ -51,6 +52,40 @@ export function initDefaultCoins(): void {
     }
   });
   tx(DEFAULT_COINS);
+}
+
+/** 后期才加进默认清单的币种。
+ *  initDefaultCoins() 只在 coins 表为空时插入，老实例（存量 DB）永远不会拿到新币，
+ *  所以这些 symbol 需要在启动时单独补插。
+ *  元数据不在这里重复写 —— 从 DEFAULT_COINS 里取，DEFAULT_COINS 是唯一真相源。 */
+const ADDED_DEFAULT_SYMBOLS = ['HYPE'];
+
+/** 给存量 DB 补插"后加进默认清单"的币种。
+ *  只在 symbol 不存在时插入；用户已有的行（改过名称/阈值/启停/排序）一律不覆盖。
+ *  sort_order 取当前最大值 +1 —— 补插的币排到列表末尾，而不是按 DEFAULT_COINS 里的固定值
+ *  （存量库的 sort_order 可能是历史遗留的稀疏值，用固定值会把新币插到列表中间）。 */
+export function syncAddedDefaultCoins(): void {
+  const db = getDb();
+  const exists = db.prepare('SELECT 1 FROM coins WHERE symbol = ?');
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as m FROM coins');
+  const stmt = db.prepare(
+    `INSERT INTO coins (symbol, name, gate_pair, gate_slug, binance_slug, cg_id, sort_order, enabled,
+       alert_above, alert_below, last_alert_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+  );
+  const now = Date.now();
+  const tx = db.transaction((symbols: string[]) => {
+    let next = (maxOrder.get() as { m: number }).m + 1;
+    for (const symbol of symbols) {
+      if (exists.get(symbol)) continue;
+      const c = DEFAULT_COINS.find((x) => x.symbol === symbol);
+      if (!c) continue;
+      stmt.run(c.symbol, c.name, c.gate_pair, c.gate_slug, c.binance_slug, c.cg_id, next, c.enabled,
+        c.alert_above, c.alert_below, now, now);
+      next++;
+    }
+  });
+  tx(ADDED_DEFAULT_SYMBOLS);
 }
 
 export function listCoins(): Coin[] {

@@ -32,7 +32,7 @@ if (!process.env['__CPB_ENV_LOADED__']) {
 
 import { initDb, closeDb, pingDb } from './core/db.js';
 import { initDefaults as initSettingDefaults } from './core/models/setting.js';
-import { initDefaultCoins } from './core/models/coin.js';
+import { initDefaultCoins, syncAddedDefaultCoins } from './core/models/coin.js';
 import { loadConfig, getConfig } from './core/config.js';
 import { initAuth } from './util/auth.js';
 import { createLogger } from './util/logger.js';
@@ -81,6 +81,8 @@ async function bootstrap(): Promise<void> {
   initDb(dbPath);
   initSettingDefaults();
   initDefaultCoins();
+  // 存量 DB 补插"后加进默认清单"的币种（如 HYPE），新库这里是 no-op
+  syncAddedDefaultCoins();
 
   // 3. 初始化默认用户（仅当 users 表为空且 env 提供）
   if ((await countUsers()) === 0) {

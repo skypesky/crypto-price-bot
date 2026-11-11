@@ -83,6 +83,7 @@ describe('db migrate: gate_slug 已知坏 slug 自动修复', () => {
     ins.run('BTC',    '比特币',   'BTC_USDT',    'bitcoin',        'bitcoin',     0, 1, now, now); // 正常 slug
     ins.run('CUSTOM', '用户币',   'CUSTOM_USDT', 'my-custom-slug', 'custom',     99, 1, now, now); // 用户自定义
     ins.run('GT',     'Gate',     'GT_USDT',     'gate',           'gatechain-token', 7, 1, now, now); // 币安未上架，binance_slug 保持 NULL
+    ins.run('HYPE',   'Hyperliquid', 'HYPE_USDT', null,           'hyperliquid',  13, 1, now, now); // 用户手动添加、slug 留空 → 迁移回填
     seed.close();
     // 2) 触发 initDb → migrate 跑修复
     closeDb();
@@ -128,6 +129,12 @@ describe('db migrate: gate_slug 已知坏 slug 自动修复', () => {
   it('币安未上架的币 binance_slug 保持 NULL', () => {
     const gt = getDb().prepare(`SELECT binance_slug FROM coins WHERE symbol='GT'`).get() as { binance_slug: string | null };
     expect(gt.binance_slug).toBeNull();
+  });
+
+  it('用户手动添加、slug 留空的 HYPE 行：gate_slug / binance_slug 被回填', () => {
+    const row = getDb().prepare(`SELECT gate_slug, binance_slug FROM coins WHERE symbol='HYPE'`).get() as { gate_slug: string; binance_slug: string };
+    expect(row.gate_slug).toBe('hyperliquid');
+    expect(row.binance_slug).toBe('hyperliquid');
   });
 
   it('修复是幂等的（重复 initDb 不会再次 UPDATE）', () => {

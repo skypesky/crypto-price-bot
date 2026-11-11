@@ -135,7 +135,8 @@
 - `gate_slug`：小写字母/数字/连字符，决定 gate.com 链接
 - `cg_id`：CoinGecko 的币种 ID，必填
 - `enabled` / `sort_order` 整数，0/1 语义
-- 首启若 coins 表为空，自动插入 9 个默认币种（BTC/ETH/USDT/SOL/ABT/BNB/GT/YGG/SAGA，FIL/ATOM/OP/ICX 已移除）
+- 首启若 coins 表为空，自动插入 10 个默认币种（BTC/ETH/USDT/SOL/ABT/BNB/GT/YGG/SAGA/HYPE，FIL/ATOM/OP/ICX 已移除）
+- 后加进默认清单的币种（如 HYPE）在存量 DB 上启动时自动补插；已有的同名行不被覆盖
 
 ### M4 — 系统设置模块 (P0)
 

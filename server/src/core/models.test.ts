@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { setDb, closeDb } from './db.js';
+import { setDb, closeDb, getDb } from './db.js';
 import * as user from './models/user.js';
 import * as session from './models/session.js';
 import * as setting from './models/setting.js';
@@ -96,7 +96,7 @@ describe('coin model', () => {
   it('initDefaultCoins + list', () => {
     coin.initDefaultCoins();
     const list = coin.listCoins();
-    expect(list.length).toBe(9);
+    expect(list.length).toBe(10);
     expect(list[0]?.symbol).toBe('BTC');
   });
 
@@ -126,6 +126,21 @@ describe('coin model', () => {
     expect(found!.gate_pair).toBe(gatePair);
     expect(found!.gate_slug).toBe(slug);
     expect(found!.cg_id).toBe(cgId);
+    expect(found!.enabled).toBe(1);
+  });
+
+  // 新增监控币种：HYPE (Hyperliquid)
+  // - gate.io USDT 交易对实测存在且 tradable，1d K 线有 400 根（够算 MA365）
+  // - Gate / 币安价格页 slug 均为 hyperliquid（/price/hyperliquid-hype、/price/hyperliquid）
+  // - CoinGecko ID 通过官方 API 确认（id=hyperliquid, symbol=hype）
+  it('HYPE 已纳入默认监控且各字段正确', () => {
+    const found = coin.DEFAULT_COINS.find((c) => c.symbol === 'HYPE');
+    expect(found, '缺少 HYPE').toBeDefined();
+    expect(found!.name).toBe('Hyperliquid');
+    expect(found!.gate_pair).toBe('HYPE_USDT');
+    expect(found!.gate_slug).toBe('hyperliquid');
+    expect(found!.binance_slug).toBe('hyperliquid');
+    expect(found!.cg_id).toBe('hyperliquid');
     expect(found!.enabled).toBe(1);
   });
 
@@ -165,6 +180,63 @@ describe('coin model', () => {
     expect(updated?.gate_slug).toBe('renamed');
     expect(updated?.binance_slug).toBeNull();
     expect(coin.deleteCoin(c.id)).toBe(true);
+  });
+
+  // 存量库补插：老实例的 coins 表里没有"后加进默认清单"的币，
+  // 必须在启动时补上，否则用户升级后报告里依然看不到这个币。
+  describe('syncAddedDefaultCoins', () => {
+    // 每个用例都从"存量库缺 HYPE"的已知状态开始，用例结束恢复 HYPE，
+    // 这样本块不依赖文件内的执行顺序（任意顺序 / shuffle 跑都成立）。
+    beforeEach(() => {
+      getDb().prepare(`DELETE FROM coins WHERE symbol = 'HYPE'`).run();
+    });
+
+    afterEach(() => {
+      coin.syncAddedDefaultCoins();
+    });
+
+    it('存量库缺 HYPE → 补插一条完整的默认行', () => {
+      expect(coin.listCoins().some(c => c.symbol === 'HYPE')).toBe(false);
+
+      coin.syncAddedDefaultCoins();
+
+      const hype = coin.listCoins().find(c => c.symbol === 'HYPE');
+      expect(hype).toBeDefined();
+      expect(hype!.name).toBe('Hyperliquid');
+      expect(hype!.gate_pair).toBe('HYPE_USDT');
+      expect(hype!.gate_slug).toBe('hyperliquid');
+      expect(hype!.binance_slug).toBe('hyperliquid');
+      expect(hype!.cg_id).toBe('hyperliquid');
+      expect(hype!.enabled).toBe(1);
+    });
+
+    it('补插的币排在列表末尾（sort_order 取当前最大值 +1）', () => {
+      coin.syncAddedDefaultCoins();
+
+      const list = coin.listCoins();
+      const hype = list.find(c => c.symbol === 'HYPE')!;
+      const maxOther = Math.max(...list.filter(c => c.symbol !== 'HYPE').map(c => c.sort_order));
+      expect(hype.sort_order).toBeGreaterThan(maxOther);
+    });
+
+    it('幂等：重复调用不会产生重复行', () => {
+      coin.syncAddedDefaultCoins();
+      coin.syncAddedDefaultCoins();
+      expect(coin.listCoins().filter(c => c.symbol === 'HYPE').length).toBe(1);
+    });
+
+    it('用户已有的 HYPE 行不被覆盖（保留改过的名称/阈值/启停）', () => {
+      coin.syncAddedDefaultCoins();
+      const hype = coin.listCoins().find(c => c.symbol === 'HYPE')!;
+      coin.updateCoin(hype.id, { name: '我的HYPE', enabled: 0, alert_above: 999 });
+
+      coin.syncAddedDefaultCoins();
+
+      const after = coin.findCoinById(hype.id)!;
+      expect(after.name).toBe('我的HYPE');
+      expect(after.enabled).toBe(0);
+      expect(after.alert_above).toBe(999);
+    });
   });
 
   it('reorderCoins 重新排序', () => {

@@ -101,6 +101,7 @@ const GATE_SLUG_BY_SYMBOL: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
   ABT: 'arcblock', BNB: 'bnb',
   GT: 'gate', YGG: 'yieldguildgames', SAGA: 'saga',
+  HYPE: 'hyperliquid',
 };
 
 /** 默认币种 → binance.com 价格页 slug（用于现有 DB 回填 binance_slug）。
@@ -111,6 +112,7 @@ const BINANCE_SLUG_BY_SYMBOL: Record<string, string> = {
   BTC: 'bitcoin', ETH: 'ethereum', USDT: 'tether', SOL: 'solana',
   ABT: 'arcblock', BNB: 'bnb',
   YGG: 'yield-guild-games', SAGA: 'saga',
+  HYPE: 'hyperliquid',
 };
 
 /** 已知坏 slug → 新 slug。
