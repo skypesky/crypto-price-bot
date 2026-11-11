@@ -34,11 +34,11 @@ function formatMA(ma: number | null, current: number, usdtToCny: number): string
   if (ma === null) return 'N/A';
   const ratio = current / ma;
   const cny = (ma * usdtToCny).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const usdStr = `$${ma.toFixed(2)}`;
-  const cnyStr = `¥${cny}`;
-  if (ratio > 1.1) return `📈 ${usdStr} ${cnyStr} (偏高)`;
-  if (ratio < 0.9) return `📉 ${usdStr} ${cnyStr} (偏低)`;
-  return `➡️ ${usdStr} ${cnyStr}`;
+  // 美元在前、人民币括注（与价格行一致，但不带汇率标注 —— 汇率已在价格行给出）
+  const price = `$${ma.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}(¥${cny})`;
+  if (ratio > 1.1) return `📈 ${price} (偏高)`;
+  if (ratio < 0.9) return `📉 ${price} (偏低)`;
+  return `➡️ ${price}`;
 }
 
 export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; timezone?: string; now?: Date; trigger?: 'local' | 'ci'; fxSource?: 'live' | 'cache' | 'fallback' }): string {
@@ -59,9 +59,10 @@ export function buildMessage(results: CoinResult[], ctx?: { usdtToCny?: number; 
     }
     const usd = Number(ticker.last);
     const cny = (usd * usdtToCny).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const usdStr = usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
     msg += `🔹 *${coin.name}* (${coin.symbol})\n`;
-    msg += `   💰 人民币：\`¥${cny}(${usdtToCny.toFixed(2)})\`\n`;
-    msg += `   💵 美元：\`$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}\`\n`;
+    // 美元在前、人民币括注，汇率显式标注：`$71.96(¥479.97)[汇率: 6.67]`
+    msg += `   💵 \`$${usdStr}(¥${cny})[汇率: ${usdtToCny.toFixed(2)}]\`\n`;
     if (indicators) {
       msg += `   ──────── 📈 趋势分析 ────────\n`;
       msg += `   📅 7天:   ${formatTrend(indicators.trend7d)}    📅 30天:  ${formatTrend(indicators.trend30d)}\n`;

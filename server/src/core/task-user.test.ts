@@ -29,7 +29,7 @@ const fakeResult = (overrides: Partial<TaskRunResult> = {}): TaskRunResult => ({
   okCoins: 7,
   tgSent: false,
   feishuSent: false,
-  message: '📊 *测试报告* from local\n\n🔹 *比特币* (BTC)\n   💰 人民币：`¥1.00`\n   🔗 [Gate](https://gate.com/btc) | [CoinGecko](https://cg.com/btc)\n\n⏰ 更新时间',
+  message: '📊 *测试报告* from local\n\n🔹 *比特币* (BTC)\n   💵 `$1.00(¥7.20)[汇率: 7.20]`\n   🔗 [Gate](https://gate.com/btc) | [CoinGecko](https://cg.com/btc)\n\n⏰ 更新时间',
   ...overrides,
 });
 

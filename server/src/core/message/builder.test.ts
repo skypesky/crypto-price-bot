@@ -61,20 +61,21 @@ describe('buildMessage', () => {
     expect(msg).toContain('50,000');
     expect(msg).toContain('🔺 +5.5%');
     expect(msg).toContain('MA7');
-    expect(msg).toContain('¥360,000.00(7.20)');
+    // 价格行：美元在前、人民币括注、汇率显式标注
+    expect(msg).toContain('`$50,000.00(¥360,000.00)[汇率: 7.20]`');
     // 默认 trigger=local
     expect(msg).toContain('加密货币价格报告 (含技术指标) from local');
     // MA 指标同时显示美元和人民币金额
     // ma7 = 49000, ratio = 50000/49000 ≈ 1.02 → ➡️
-    expect(msg).toContain('MA7:   ➡️ $49000.00 ¥352,800.00');
+    expect(msg).toContain('MA7:   ➡️ $49,000.00(¥352,800.00)');
     // ma30 = 48000, ratio ≈ 1.04 → ➡️
-    expect(msg).toContain('MA30:  ➡️ $48000.00 ¥345,600.00');
+    expect(msg).toContain('MA30:  ➡️ $48,000.00(¥345,600.00)');
     // ma90 = 45000, ratio ≈ 1.11 → 📈 偏高
-    expect(msg).toContain('MA90:  📈 $45000.00 ¥324,000.00 (偏高)');
+    expect(msg).toContain('MA90:  📈 $45,000.00(¥324,000.00) (偏高)');
     // ma180 = 40000, ratio = 1.25 → 📈 偏高
-    expect(msg).toContain('MA180: 📈 $40000.00 ¥288,000.00 (偏高)');
+    expect(msg).toContain('MA180: 📈 $40,000.00(¥288,000.00) (偏高)');
     // ma365 = 30000, ratio ≈ 1.67 → 📈 偏高
-    expect(msg).toContain('MA365: 📈 $30000.00 ¥216,000.00 (偏高)');
+    expect(msg).toContain('MA365: 📈 $30,000.00(¥216,000.00) (偏高)');
   });
 
   it('CI 触发时标题显示 [ci]', () => {
@@ -104,7 +105,7 @@ describe('buildMessage', () => {
     };
     const msg = buildMessage([r], { usdtToCny: 7.0, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z') });
     // ma7 = 60000, ratio = 50000/60000 ≈ 0.83 → 📉 偏低
-    expect(msg).toContain('MA7:   📉 $60000.00 ¥420,000.00 (偏低)');
+    expect(msg).toContain('MA7:   📉 $60,000.00(¥420,000.00) (偏低)');
     // ma365 数据不足 → N/A
     expect(msg).toContain('MA365: N/A');
   });
