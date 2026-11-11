@@ -25,7 +25,7 @@ export interface GateCandle {
  * Gate 现货 K 线支持的区间。
  * Gate 用 `7d` / `30d` 表示周线 / 月线（没有 1w / 1M / 1Y），年线只能由月线聚合。
  */
-export type GateInterval = '1d' | '7d' | '30d';
+export type GateInterval = '1h' | '4h' | '1d' | '7d' | '30d';
 
 /**
  * 按指定区间获取 K 线（按时间升序）。

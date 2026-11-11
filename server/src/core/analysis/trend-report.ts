@@ -92,7 +92,7 @@ function futuresLines(d: GateDerivatives): string[] {
     if (ann > 30) tag = '多头成本偏高';
     else if (ann < -3) tag = '空头成本为负(挤仓风险)';
     else if (ann > 10) tag = '多头付费意愿尚可';
-    lines.push(`资金费率 ${formatFundingRate(d.fundingRate)}%/8h(年化${ann.toFixed(1)}%,${tag})`);
+    lines.push(`费率 ${formatFundingRate(d.fundingRate)}%/8h(年化${ann.toFixed(1)}%,${tag})`);
   }
 
   if (d.openInterestChangePct !== null) {
@@ -105,11 +105,11 @@ function futuresLines(d: GateDerivatives): string[] {
   if (liqTotal > 0) {
     const usd = (v: number) => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : `$${(v / 1e3).toFixed(0)}K`);
     if (d.longLiquidationUsd > d.shortLiquidationUsd * 1.2) {
-      lines.push(`近${d.days}日多头爆仓 ${usd(d.longLiquidationUsd)} 占优(多头被清洗)`);
+      lines.push(`${d.days}日多头爆仓 ${usd(d.longLiquidationUsd)} 占优(多头被清洗)`);
     } else if (d.shortLiquidationUsd > d.longLiquidationUsd * 1.2) {
-      lines.push(`近${d.days}日空头爆仓 ${usd(d.shortLiquidationUsd)} 占优(空头被清洗)`);
+      lines.push(`${d.days}日空头爆仓 ${usd(d.shortLiquidationUsd)} 占优(空头被清洗)`);
     } else {
-      lines.push(`近${d.days}日多空爆仓相当`);
+      lines.push(`${d.days}日多空爆仓相当`);
     }
   }
 
@@ -184,17 +184,17 @@ function sentimentLines(d: GateDerivatives): string[] {
     const avg = avgOf(days.map((x) => x.lsrAccount));
     const arrow = avg === null ? '' : last.lsrAccount > avg * 1.03 ? '↑' : last.lsrAccount < avg * 0.97 ? '↓' : '→';
     lines.push(
-      `账户多空比 ${last.lsrAccount.toFixed(2)}(${lsrTag(last.lsrAccount)}${avg !== null ? `，${days.length}日均 ${avg.toFixed(2)}${arrow}` : ''})`,
+      `多空 ${last.lsrAccount.toFixed(2)}(${lsrTag(last.lsrAccount)}${avg !== null ? `，${days.length}日均 ${avg.toFixed(2)}${arrow}` : ''})`,
     );
   }
 
   if (last.topLsrAccount !== null) {
-    lines.push(`大户账户多空比 ${last.topLsrAccount.toFixed(2)}(${topLsrTag(last.topLsrAccount)})`);
+    lines.push(`大户 ${last.topLsrAccount.toFixed(2)}(${topLsrTag(last.topLsrAccount)})`);
   }
 
   if (last.takerRatio !== null && last.takerRatio > 0) {
     // lsr_taker 为 0 表示当期几乎没有主动买盘成交（流动性极差），不是"卖盘主导" → 不展示
-    lines.push(`主动买卖比 ${last.takerRatio.toFixed(2)}(${takerTag(last.takerRatio)})`);
+    lines.push(`主动 ${last.takerRatio.toFixed(2)}(${takerTag(last.takerRatio)})`);
   }
 
   if (last.longUsers !== null && last.shortUsers !== null && last.shortUsers > 0) {

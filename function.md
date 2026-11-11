@@ -214,9 +214,17 @@
 - 执行流程：listEnabledCoins → 并行 fetchOne(ticker + klines + 合约统计) → getUsdtToCnyRate → buildMessage → 并行 sendToTG/sendToFeishu → createReport
 - 任一币种 ticker 失败不中断其他币种，最终 `okCoins > 0` 视为 success
 - TG / 飞书并行推送，任一通道失败不影响另一通道；都失败仍生成 report（success=false）
-- 趋势研判（`analysis/trend-report.ts`）：每个币在均线段之后追加 4 行 —
-  短线（7 天）/ 中线（30-90 天）/ 长线（半年-1 年）/ 合约情绪+结论；
+- 趋势研判（`analysis/trend-report.ts`）：每个币在均线段之后追加 —
+  4 条周期行（日/周/月/年）+ 一条合并解读（`日线·…；周线·…；月线·…；年线·…`）+ 合约情绪 + 结论；
   数字口径直接复用 `buildIndicators` 的趋势值，与上方趋势行同源；合约数据缺失时只出结论不出情绪
+- 日内交易分析（`analysis/intraday.ts`）：4h 定方向、1h 找位置 —
+  4h 用 BOLL(20,2) / MACD(12,26,9) / RSI(14) / ATR(14) + 量能投票得出偏多/偏空/震荡；
+  1h 用近 48 根完整 K 线的高低点识别箱体，并用「箱体宽度 / 平均单根振幅」区分箱体震荡与宽幅趋势；
+  结合布林带宽百分位判断收敛（≤30% 待变盘）/ 扩张（≥70%）；输出布林上/中/下轨价位、箱体上下沿、现价位置（0~100%）、突破/跌破与日内建议。
+  该段排在「趋势研判」之前；4h / 1h 指标各自压缩成一行；4h 或 1h 拉取失败时只降级对应部分，两边都空则不渲染该段
+- 消息排版（`message/builder.ts`）：去掉长分隔标题，用 🧭 / ⚡ / 📊 / 📌 前缀分区；
+  涨跌幅 5 项、5 条均线、合约情绪/资金、结论+建议各压成一行；人民币金额用「万/亿」紧凑写法；
+  单币高度约为旧版一半，信息量不变
 - `cron` 6 段（含秒），默认 `0 */30 * * * *`（每 30 分钟整点）
 - 时区默认 `Asia/Shanghai`，可改
 - 修改 `schedule_rule` / `timezone` 立即生效（config listener）

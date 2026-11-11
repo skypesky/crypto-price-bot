@@ -213,11 +213,11 @@ describe('analyzeTrend', () => {
     it('多空比 / 持仓 / 爆仓都会被写进情绪与资金行', () => {
       const closes = series(100, 400, 0.995);
       const a = analyze(closes[closes.length - 1]!, { daily: closes }, derivatives);
-      expect(a.sentiment.join('\n')).toContain('账户多空比 2.25');
-      expect(a.sentiment.join('\n')).toContain('大户账户多空比 0.56');
-      expect(a.sentiment.join('\n')).toContain('主动买卖比');
+      expect(a.sentiment.join('\n')).toContain('多空 2.25');
+      expect(a.sentiment.join('\n')).toContain('大户 0.56');
+      expect(a.sentiment.join('\n')).toContain('主动 ');
       expect(a.sentiment.join('\n')).toContain('多空用户');
-      expect(a.futures.join('\n')).toContain('资金费率');
+      expect(a.futures.join('\n')).toContain('费率 ');
       expect(a.futures.join('\n')).toContain('年化');
       expect(a.futures.join('\n')).toContain('持仓');
       expect(a.futures.join('\n')).toContain('多头爆仓');

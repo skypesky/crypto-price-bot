@@ -177,7 +177,7 @@ function maBits(mas: MaView[]): string[] {
   const out: string[] = [];
   for (const ma of mas) {
     if (ma.offset === null) continue;
-    out.push(`现价${ma.offset >= 0 ? '站上' : '跌破'}${ma.label} ${pctAbs(Math.abs(ma.offset))}`);
+    out.push(`${ma.offset >= 0 ? '站上' : '跌破'}${ma.label} ${pctAbs(Math.abs(ma.offset))}`);
   }
   return out;
 }

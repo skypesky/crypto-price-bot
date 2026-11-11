@@ -3,6 +3,7 @@ import { getGateCandles, getGateCandlesByInterval, type GateCandle } from './gat
 import { getGateDerivatives, type GateDerivatives } from './gate/futures.js';
 import { getUsdtToCnyRate } from './gate/fx.js';
 import { analyzeTrend } from './analysis/trend-report.js';
+import { analyzeIntraday } from './analysis/intraday.js';
 import { buildIndicators, buildMessage, type CoinResult } from './message/builder.js';
 import { sendToTG } from './notify/telegram.js';
 import { sendToFeishu } from './notify/feishu.js';
@@ -27,7 +28,7 @@ export interface TaskRunResult {
 
 async function fetchOne(coin: Coin): Promise<CoinResult> {
   if (!coin.gate_pair) {
-    return { coin, ticker: { last: '1.0' }, indicators: null, analysis: null, source: 'stable' };
+    return { coin, ticker: { last: '1.0' }, indicators: null, analysis: null, intraday: null, source: 'stable' };
   }
   try {
     const [ticker, candles] = await Promise.all([
@@ -36,14 +37,22 @@ async function fetchOne(coin: Coin): Promise<CoinResult> {
     ]);
     const currentPrice = Number(ticker.last);
     const indicators = buildIndicators(candles.map((c) => c.close), currentPrice);
-    // 周线 / 月线：拉失败只降级该周期（研判里显示「数据不足」），不影响价格侧报告
-    const [weekly, monthly] = await Promise.all([
+    // 周线 / 月线 / 日内 4h·1h：拉失败只降级对应周期（研判里显示「数据不足」），不影响价格侧报告
+    const [weekly, monthly, h4, h1] = await Promise.all([
       getGateCandlesByInterval(coin.gate_pair, '7d', 120).catch((err: Error) => {
         log.warn(`${coin.symbol} gate.io 周线失败: ${err.message}`);
         return [] as GateCandle[];
       }),
       getGateCandlesByInterval(coin.gate_pair, '30d', 60).catch((err: Error) => {
         log.warn(`${coin.symbol} gate.io 月线失败: ${err.message}`);
+        return [] as GateCandle[];
+      }),
+      getGateCandlesByInterval(coin.gate_pair, '4h', 120).catch((err: Error) => {
+        log.warn(`${coin.symbol} gate.io 4h 线失败: ${err.message}`);
+        return [] as GateCandle[];
+      }),
+      getGateCandlesByInterval(coin.gate_pair, '1h', 168).catch((err: Error) => {
+        log.warn(`${coin.symbol} gate.io 1h 线失败: ${err.message}`);
         return [] as GateCandle[];
       }),
     ]);
@@ -59,6 +68,7 @@ async function fetchOne(coin: Coin): Promise<CoinResult> {
       ticker: { last: ticker.last, change_percentage: ticker.change_percentage },
       indicators,
       analysis: analyzeTrend({ current: currentPrice, candles, weekly, monthly, indicators, derivatives }),
+      intraday: analyzeIntraday({ current: currentPrice, candles4h: h4, candles1h: h1 }),
       source: 'gate',
     };
   } catch (err) {
@@ -68,6 +78,7 @@ async function fetchOne(coin: Coin): Promise<CoinResult> {
       ticker: null,
       indicators: null,
       analysis: null,
+      intraday: null,
       source: 'failed',
       error: (err as Error).message,
     };

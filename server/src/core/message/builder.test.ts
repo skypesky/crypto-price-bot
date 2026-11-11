@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { setDb, closeDb } from '../db.js';
 import { initDefaults } from '../models/setting.js';
 import { buildMessage, buildIndicators, buildCoinLinks, type CoinResult } from './builder.js';
+import { messageToFeishuCard } from './formatter.js';
 import type { Coin } from '../models/coin.js';
 
 let customDb: Database.Database;
@@ -59,23 +60,19 @@ describe('buildMessage', () => {
     expect(msg).toContain('比特币');
     expect(msg).toContain('BTC');
     expect(msg).toContain('50,000');
-    expect(msg).toContain('🔺 +5.5%');
-    expect(msg).toContain('MA7');
-    // 价格行：美元在前、人民币括注、汇率显式标注
-    expect(msg).toContain('`$50,000.00(¥360,000.00)[汇率: 7.20]`');
+    // 涨跌幅压成一行：`7d +5.50% · 30d +10.20% · …`
+    expect(msg).toContain('7d +5.50% · 30d +10.20%');
+    // 价格行：美元 + 紧凑人民币（万）+ 汇率，压到一行
+    expect(msg).toContain('`$50,000.00(¥36.0万 @7.20)`');
     // 默认 trigger=local
     expect(msg).toContain('加密货币价格报告 (含技术指标) from local');
-    // MA 指标同时显示美元和人民币金额，并显式说明现价与均线的大小关系
-    // ma7 = 49000, ratio = 50000/49000 ≈ 1.02 → >（现价在均线上方）
-    expect(msg).toContain('MA7:   > $49,000.00(¥352,800.00)');
-    // ma30 = 48000, ratio ≈ 1.04 → >
-    expect(msg).toContain('MA30:  > $48,000.00(¥345,600.00)');
-    // ma90 = 45000, ratio ≈ 1.11 → >
-    expect(msg).toContain('MA90:  > $45,000.00(¥324,000.00)');
-    // ma180 = 40000, ratio = 1.25 → >
-    expect(msg).toContain('MA180: > $40,000.00(¥288,000.00)');
-    // ma365 = 30000, ratio ≈ 1.67 → >
-    expect(msg).toContain('MA365: > $30,000.00(¥216,000.00)');
+    // MA 压成一行；符号表示现价与均线的关系（> = 现价在均线上方）
+    // 49000×7.2=352800 → ¥35.3万
+    expect(msg).toContain('MA 7>49,000(¥35.3万)');
+    expect(msg).toContain('30>48,000(¥34.6万)');
+    expect(msg).toContain('90>45,000(¥32.4万)');
+    expect(msg).toContain('180>40,000(¥28.8万)');
+    expect(msg).toContain('365>30,000(¥21.6万)');
   });
 
   it('CI 触发时标题显示 [ci]', () => {
@@ -104,10 +101,10 @@ describe('buildMessage', () => {
       source: 'gate',
     };
     const msg = buildMessage([r], { usdtToCny: 7.0, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z') });
-    // ma7 = 60000, ratio = 50000/60000 ≈ 0.83 → <（现价在均线下方）
-    expect(msg).toContain('MA7:   < $60,000.00(¥420,000.00)');
+    // ma7 = 60000 → 现价在均线下方（<）；60000×7=420000 → ¥42.0万
+    expect(msg).toContain('7<60,000(¥42.0万)');
     // ma365 数据不足 → N/A
-    expect(msg).toContain('MA365: N/A');
+    expect(msg).toContain('365 N/A');
   });
 
   it('失败币种', () => {
@@ -248,28 +245,29 @@ describe('buildCoinLinks', () => {
           monthly: '长期趋势向上，价格运行于均线上方',
           yearly: '长期上升趋势未破',
         },
-        sentiment: ['账户多空比 2.25(多头占优)'],
-        futures: ['资金费率 0.0100%/8h(年化10.9%,多头付费意愿尚可)'],
+        sentiment: ['多空 2.25(多头占优)'],
+        futures: ['费率 0.0100%/8h(年化10.9%,多头付费意愿尚可)'],
         summary: '各周期一致走弱，下行趋势延续',
         advice: '观望 —— 现价仍在日线MA30下方，等待站回MA30或明确企稳',
       },
       source: 'gate',
     };
     const msg = buildMessage([r]);
-    expect(msg).toContain('🧭 趋势研判');
-    expect(msg).toContain('日线：下跌 -7.99%');
+    // 去掉分隔标题，用 🧭/📊/📌 前缀区分区块
+    expect(msg).toContain('🧭 日线：下跌 -7.99%');
     expect(msg).toContain('周线：下跌 -9.50%');
     expect(msg).toContain('月线：下跌 -6.37%');
     expect(msg).toContain('年线：跌破3年年均线 6.37%');
-    expect(msg).toContain('📊 合约情绪');
-    expect(msg).toContain('账户多空比 2.25(多头占优)');
-    expect(msg).toContain('💰 合约资金');
-    expect(msg).toContain('资金费率 0.0100%/8h');
-    expect(msg).toContain('📌 结论');
-    expect(msg).toContain('各周期一致走弱，下行趋势延续');
-    // 每个周期后跟一句解读，结论后给出三选一的操作建议
-    expect(msg).toContain('解读：短期空头占优，均线压制');
-    expect(msg).toContain('💡 操作建议：观望');
+    expect(msg).toContain('📊 多空 2.25(多头占优)');
+    expect(msg).toContain('费率 0.0100%/8h');
+    // 四个周期的解读合并成一行（日线·/周线·/月线·/年线·），只有一条「解读」
+    expect(msg).toContain('解读：日线·短期空头占优，均线压制');
+    expect(msg).toContain('；周线·中期偏弱');
+    expect(msg).toContain('；月线·长期趋势向上');
+    expect(msg).toContain('；年线·长期上升趋势未破');
+    expect((msg.match(/解读：/g) ?? []).length).toBe(1);
+    // 结论 + 建议压成一行：`📌 … → 观望`
+    expect(msg).toContain('📌 各周期一致走弱，下行趋势延续 → 观望');
   });
 
   it('没有 analysis 时不渲染研判段', () => {
@@ -280,7 +278,107 @@ describe('buildCoinLinks', () => {
       source: 'gate',
     };
     const msg = buildMessage([r]);
-    expect(msg).not.toContain('🧭 趋势研判');
+    expect(msg).not.toContain('🧭');
+  });
+
+  it('有 intraday 时渲染日内段（方向+箱体、4h 指标、1h 指标、建议）', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      intraday: {
+        headline: '4h 震荡 · 箱体 $48,000.00~$52,000.00(8.0% 中部50%)',
+        h4: 'BOLL4h 上$50,500.00/中$49,500.00/下$48,500.00(带宽4.2% 正常) · MACD多头动能平缓 · RSI52.0(中性)',
+        h1: 'BOLL1h 上$50,200.00/中$49,800.00/下$49,400.00(%B50% 中轨附近 收敛)',
+        advice: '箱体中部观望，等边缘或放量突破',
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    expect(msg).toContain('⚡ 4h 震荡');
+    expect(msg).toContain('箱体 $48,000.00~$52,000.00');
+    expect(msg).toContain('BOLL4h 上$50,500.00/中$49,500.00/下$48,500.00');
+    expect(msg).toContain('BOLL1h 上$50,200.00/中$49,800.00/下$49,400.00');
+    expect(msg).toContain('💡 箱体中部观望');
+  });
+
+  it('没有 intraday 时不渲染日内段', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    expect(msg).not.toContain('⚡');
+  });
+
+  it('日内交易段排在趋势研判之前', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      intraday: {
+        headline: '4h 震荡',
+        h4: null,
+        h1: null,
+        advice: '观望',
+      },
+      analysis: {
+        daily: '日线：横盘',
+        weekly: '周线：横盘',
+        monthly: '月线：横盘',
+        yearly: '年线：横盘',
+        insights: { daily: '', weekly: '', monthly: '', yearly: '' },
+        sentiment: [],
+        futures: [],
+        summary: '各周期横盘',
+        advice: '观望',
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    const intradayAt = msg.indexOf('⚡');
+    const trendAt = msg.indexOf('🧭');
+    expect(intradayAt).toBeGreaterThan(-1);
+    expect(trendAt).toBeGreaterThan(-1);
+    expect(intradayAt).toBeLessThan(trendAt);
+  });
+
+  it('紧凑排版仍能被飞书卡片正确解析（链接转按钮、正文保留）', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: {
+        ma7: 49000, ma30: 48000, ma90: 45000, ma180: 40000, ma365: 30000,
+        trend7d: 5.5, trend30d: 10.2, trend90d: 20.0, trend180d: 30.0, trend1y: 50.0,
+      },
+      intraday: {
+        headline: '4h 震荡 · 箱体 $48,000.00~$52,000.00(8.0% 中部50%)',
+        h4: 'BOLL4h 上$50,500.00/中$49,500.00/下$48,500.00(带宽4.2% 正常)',
+        h1: 'BOLL1h 上$50,200.00/中$49,800.00/下$49,400.00(%B50% 中轨附近 收敛)',
+        advice: '箱体中部观望，等边缘或放量突破',
+      },
+      analysis: {
+        daily: '日线：横盘',
+        weekly: '周线：横盘',
+        monthly: '月线：横盘',
+        yearly: '年线：横盘',
+        insights: { daily: '', weekly: '', monthly: '', yearly: '' },
+        sentiment: ['多空 1.00(多空均衡)'],
+        futures: ['资金费率 0.0100%/8h'],
+        summary: '各周期横盘',
+        advice: '观望 —— 方向不明',
+      },
+      source: 'gate',
+    };
+    const card = messageToFeishuCard(buildMessage([r], { usdtToCny: 7.2 }));
+    expect(card).not.toBeNull();
+    const markdown = card!.card.elements.find((e) => e.tag === 'markdown');
+    expect(markdown && 'content' in markdown ? markdown.content : '').toContain('⚡ 4h 震荡');
+    const action = card!.card.elements.find((e) => e.tag === 'action');
+    expect(action && 'actions' in action ? action.actions.map((b) => b.text.content) : [])
+      .toContain('Gate');
   });
 
   // 结构与可达性检查：如果将来 URL 形态变了（域名 / 路径改了），这些会先炸
