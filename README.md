@@ -126,8 +126,8 @@ make test.coverage      # + 覆盖率报告
 
 ## 飞书 Bot 配置（可选，「立即查询」按钮功能）
 
-定时推送默认走 **webhook 自定义机器人**（纯文本）。
-要开启「🔄 立即查询」按钮（卡片可点击、点完 DM 给你），需要额外配置飞书自建应用 Bot。本项目使用 **SDK 长连接（WebSocket）** 模式，**不需要公网 URL / ngrok**，本地开发即可用。
+定时推送默认走 **webhook 自定义机器人**（interactive 卡片，交易所链接渲染为可点击按钮）。
+要开启「🔄 立即查询」按钮（点完 DM 给你），需要额外配置飞书自建应用 Bot。本项目使用 **SDK 长连接（WebSocket）** 模式，**不需要公网 URL / ngrok**，本地开发即可用。
 
 ### 1. 创建应用
 
@@ -197,4 +197,4 @@ FEISHU_DEFAULT_RECEIVE_ID_TYPE=chat_id
 
 ### 凭证缺失的降级行为
 
-如果 4 个必填 env 变量任一缺失，server 启动时会打日志 `Bot not configured, skipping feishu WS start`，定时推送自动降级为 webhook 纯文本（无按钮）。系统不会宕机。
+如果 4 个必填 env 变量任一缺失，server 启动时会打日志 `Bot not configured, skipping feishu WS start`，定时推送自动降级为 webhook 卡片推送（交易所链接仍可点击，但少了「🔄 立即查询」按钮）。系统不会宕机。

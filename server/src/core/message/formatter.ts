@@ -53,12 +53,24 @@ export function isFullReportMessage(message: string): boolean {
   return /🔗\s*\[Gate\]\(/.test(message);
 }
 
+export interface FeishuCardOptions {
+  /**
+   * 是否追加「🔄 立即查询」回调按钮，默认 true。
+   *
+   * 该按钮依赖 `card.action.trigger` 事件回调，只有具备事件订阅能力的 Bot 通道
+   * （WS / HTTP 回调）才能响应。webhook 自定义机器人没有事件订阅通道，带上就是死按钮
+   * → webhook 通道传 false，只保留 url 跳转按钮（点击直接打开链接，不依赖回调）。
+   */
+  includeQueryButton?: boolean;
+}
+
 /**
  * 把 buildMessage 输出的 Markdown 字符串解析成飞书 interactive 卡片。
  * 不是完整报告或解析失败时返回 null，调用方应降级到 text 通道。
  */
-export function messageToFeishuCard(message: string): FeishuCardPayload | null {
+export function messageToFeishuCard(message: string, opts?: FeishuCardOptions): FeishuCardPayload | null {
   if (!isFullReportMessage(message)) return null;
+  const includeQueryButton = opts?.includeQueryButton ?? true;
 
   const sections = message.split(/\n\n+/);
   const titleSection = sections[0] ?? '';
@@ -114,17 +126,20 @@ export function messageToFeishuCard(message: string): FeishuCardPayload | null {
   }
 
   // 末尾加「立即查询」按钮：用户点击后飞书回调 server 重新拉一次报告并 DM 给点击者
-  elements.push({
-    tag: 'action',
-    actions: [
-      {
-        tag: 'button',
-        text: { tag: 'plain_text', content: '🔄 立即查询' },
-        type: 'primary',
-        value: { action: 'query_now', v: 1 },
-      },
-    ],
-  });
+  // 仅 Bot 通道渲染（webhook 无事件订阅通道，按钮点了没反应）
+  if (includeQueryButton) {
+    elements.push({
+      tag: 'action',
+      actions: [
+        {
+          tag: 'button',
+          text: { tag: 'plain_text', content: '🔄 立即查询' },
+          type: 'primary',
+          value: { action: 'query_now', v: 1 },
+        },
+      ],
+    });
+  }
 
   return {
     msg_type: 'interactive',
@@ -136,7 +151,8 @@ export function messageToFeishuCard(message: string): FeishuCardPayload | null {
 }
 
 /**
- * 解析单个币种段：剥离链接行（链接转 actions 按钮），把 `*X*` 转成飞书 markdown 的 `**X**`。
+ * 解析单个币种段：剥离链接行（链接转 actions 按钮），把 `*X*` 转成飞书 markdown 的 `**X**`，
+ * 把行内 `code` 转成 `**加粗**`（飞书 markdown 不支持行内单反引号）。
  * 解析不出 Gate/CoinGecko 链接时返回 null（防御：buildMessage 格式被破坏）。
  */
 function parseCoinSection(section: string): {
@@ -165,7 +181,11 @@ function parseCoinSection(section: string): {
   if (!links.gate || !links.coingecko) return null;
 
   // Telegram 风格 `*X*` → 飞书 markdown 加粗 `**X**`。负向断言避免误伤 `**X**`。
-  const content = contentLines.join('\n').replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '**$1**');
+  // 飞书 markdown 组件不支持行内单反引号（inline code，只支持 ``` 代码块），
+  // 留着会原样渲染出 ` 符号 → 转成加粗，保留"重点数据"的视觉区分。
+  const content = contentLines.join('\n')
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '**$1**')
+    .replace(/`([^`\n]+)`/g, '**$1**');
 
   return {
     content,

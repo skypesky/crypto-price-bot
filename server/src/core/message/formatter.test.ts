@@ -42,18 +42,17 @@ describe('normalizeMessageForTextChannel', () => {
 const SAMPLE_REPORT = `📊 *加密货币价格报告 (含技术指标) from local*
 
 🔹 *比特币* (BTC)
-   💰 人民币：\`¥360,000.00(7.20)\`
-   💵 美元：\`$50,000.00\`
+   💵 \`$50,000.00(¥360,000.00)[汇率: 7.20]\`
    ──────── 📈 趋势分析 ────────
    📅 7天:   🔺 +5.5%    📅 30天:  🔺 +10.2%
    📅 90天:  🔺 +20.0%   📅 180天: 🔺 +30.0%
    📅 1年:   🔺 +50.0%
    ──────── 📊 均线 (MA) ────────
-   MA7:   ➡️ $49000.00 ¥352,800.00
-   MA30:  ➡️ $48000.00 ¥345,600.00
-   MA90:  📈 $45000.00 ¥324,000.00 (偏高)
-   MA180: 📈 $40000.00 ¥288,000.00 (偏高)
-   MA365: 📈 $30000.00 ¥216,000.00 (偏高)
+   MA7:   ➡️ $49,000.00(¥352,800.00)
+   MA30:  ➡️ $48,000.00(¥345,600.00)
+   MA90:  📈 $45,000.00(¥324,000.00) (偏高)
+   MA180: 📈 $40,000.00(¥288,000.00) (偏高)
+   MA365: 📈 $30,000.00(¥216,000.00) (偏高)
    🔗 [Gate](https://www.gate.com/zh/price/bitcoin-btc) | [Binance](https://www.binance.com/zh-CN/price/bitcoin/) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
 
 ⏰ 更新时间: 2026/9/17 00:00:00
@@ -64,8 +63,7 @@ const SAMPLE_REPORT = `📊 *加密货币价格报告 (含技术指标) from loc
 const SAMPLE_GT_REPORT = `📊 *加密货币价格报告 (含技术指标) from local*
 
 🔹 *Gate* (GT)
-   💰 人民币：\`¥63.00(7.00)\`
-   💵 美元：\`$9.00\`
+   💵 \`$9.00(¥63.00)[汇率: 7.00]\`
    📈 趋势数据暂时不可用
    🔗 [Gate](https://www.gate.com/zh/price/gate-gt) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
 
@@ -109,7 +107,9 @@ describe('messageToFeishuCard', () => {
       expect(md.content).not.toMatch(/(?<!\*)\*比特币\*(?!\*)/);
       // 链接行不进入 markdown 块（会单独渲染为按钮）
       expect(md.content).not.toContain('[Gate](');
-      expect(md.content).toContain('`¥360,000.00(7.20)`');
+      // 行内单反引号被转成加粗（飞书 markdown 不支持 inline code，留着会原样显示 `）
+      expect(md.content).toContain('**$50,000.00(¥360,000.00)[汇率: 7.20]**');
+      expect(md.content).not.toContain('`');
       expect(md.content).toContain('MA7:');
     }
 
@@ -177,11 +177,11 @@ describe('messageToFeishuCard', () => {
     const two = `📊 *加密货币价格报告 (含技术指标) from local*
 
 🔹 *比特币* (BTC)
-   💰 人民币：\`¥360,000.00(7.20)\`
+   💵 \`$50,000.00(¥360,000.00)[汇率: 7.20]\`
    🔗 [Gate](https://www.gate.com/zh/price/bitcoin-btc) | [Binance](https://www.binance.com/zh-CN/price/bitcoin/) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
 
 🔹 *Gate* (GT)
-   💰 人民币：\`¥63.00(7.00)\`
+   💵 \`$9.00(¥63.00)[汇率: 7.00]\`
    🔗 [Gate](https://www.gate.com/zh/price/gate-gt) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
 
 ⏰ 更新时间: 2026/9/17 00:00:00
@@ -224,6 +224,47 @@ describe('messageToFeishuCard', () => {
   it('输出的 msg_type 必须是 interactive（飞书 webhook 用）', () => {
     const card: FeishuCardPayload | null = messageToFeishuCard(SAMPLE_REPORT);
     expect(card?.msg_type).toBe('interactive');
+  });
+
+  it('includeQueryButton=false：不渲染「立即查询」回调按钮，但保留 url 跳转按钮', () => {
+    const card = messageToFeishuCard(SAMPLE_REPORT, { includeQueryButton: false });
+    expect(card).not.toBeNull();
+    if (!card) return;
+
+    // 没有「立即查询」按钮（webhook 无事件订阅通道，避免死按钮）
+    const queryBtn = card.card.elements.find(
+      e => e.tag === 'action' && e.actions.some(a => a.text.content === '🔄 立即查询')
+    );
+    expect(queryBtn).toBeUndefined();
+
+    // 但 Gate / Binance / CoinGecko 的 url 按钮仍在
+    const actions = card.card.elements.find(e => e.tag === 'action');
+    expect(actions?.tag).toBe('action');
+    if (actions?.tag !== 'action') return;
+    expect(actions.actions.map(a => a.text.content)).toEqual(['Gate', 'Binance', 'CoinGecko']);
+    expect(actions.actions.every(a => typeof a.url === 'string' && a.url.startsWith('http'))).toBe(true);
+  });
+
+  it('includeQueryButton 默认 true：渲染「立即查询」按钮', () => {
+    const card = messageToFeishuCard(SAMPLE_REPORT);
+    const hasQuery = card?.card.elements.some(
+      e => e.tag === 'action' && e.actions.some(a => a.text.content === '🔄 立即查询')
+    );
+    expect(hasQuery).toBe(true);
+  });
+
+  it('行内单反引号转成加粗：飞书 markdown 不支持 inline code', () => {
+    const card = messageToFeishuCard(SAMPLE_REPORT);
+    const md = card?.card.elements.find(e => e.tag === 'markdown');
+    expect(md?.tag).toBe('markdown');
+    if (md?.tag !== 'markdown') return;
+
+    // 卡片里不应残留任何反引号（会原样渲染成 ` 符号）
+    expect(md.content).not.toContain('`');
+    // 币种名的 *X* 仍是加粗，且未被反引号转换破坏
+    expect(md.content).toContain('**比特币**');
+    // 价格行原本是 `code`，现在是加粗
+    expect(md.content).toContain('**$50,000.00(¥360,000.00)[汇率: 7.20]**');
   });
 
   it('卡片末尾有「立即查询」按钮', () => {

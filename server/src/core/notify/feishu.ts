@@ -47,8 +47,11 @@ export async function sendToFeishu(message: string): Promise<FeishuSendResult> {
     return { ok: false, error: 'feishu webhook not configured' };
   }
   try {
-    // Webhook 不支持按钮回调（无事件订阅通道），全程走 text 通道避免出现死按钮。
-    const body = {
+    // Webhook 自定义机器人支持 interactive 卡片：链接用 url 按钮承载，点击直接跳转，不依赖回调。
+    // 但「🔄 立即查询」按钮依赖 card.action.trigger 事件回调，webhook 没有事件订阅通道
+    // → 这里渲染时剔除，避免出现点了没反应的死按钮。
+    const card = isFullReportMessage(message) ? messageToFeishuCard(message, { includeQueryButton: false }) : null;
+    const body = card ?? {
       msg_type: 'text' as const,
       content: { text: normalizeMessageForTextChannel(message) },
     };
