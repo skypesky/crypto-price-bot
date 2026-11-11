@@ -71,6 +71,44 @@ const SAMPLE_GT_REPORT = `📊 *加密货币价格报告 (含技术指标) from 
 ⚠️ MA（移动平均线）仅供参考，不构成投资建议
 数据展示以 CoinGecko 数据为准`;
 
+// 排版改造后的新格式报告（分区标题 + 冒号式标签 + 紧凑人民币），
+// 与 buildMessage 当前输出一致：币种块之间用空行、块内用 🔹 开头。
+const NEW_STYLE_REPORT = `📊 *加密货币价格报告 (含技术指标) from local*
+
+🔹 *比特币* BTC · \`$50,000.00(¥36.0万 @7.20)\`
+   ──── 📈 趋势 ────
+   涨跌：+5.50%(7d) · +10.20%(30d) · N/A(90d) · N/A(180d) · N/A(1y)
+   均线：7 > 49,000(¥35.3万) · 30 > 48,000(¥34.6万) · 90 > 45,000(¥32.4万) · 180 > 40,000(¥28.8万) · 365 > 30,000(¥21.6万)
+   ──── ⚡ 日内 ────
+   4h：震荡 · 箱体：$48,000.00~$52,000.00(8.0% 中部50%)
+   BOLL4h：上$50,500.00/中$49,500.00/下$48,500.00(带宽4.2% 正常)
+   💡 箱体中部观望，等边缘或放量突破
+   ──── 📌 结论 ────
+   各周期一致走弱 → 观望
+   🔗 [Gate](https://www.gate.com/zh/trade/BTC_USDT) | [Binance](https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot) | [CoinGlass](https://www.coinglass.com/zh/currencies/BTC) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
+
+⏰ 更新时间: 2026/9/17 00:00:00
+⚠️ MA（移动平均线）仅供参考，不构成投资建议
+数据展示以 CoinGecko 数据为准`;
+
+// 同上但只有两个币种（第二个币种没有 Binance 链接）
+const NEW_STYLE_TWO_COINS = `📊 *加密货币价格报告 (含技术指标) from local*
+
+🔹 *比特币* BTC · \`$50,000.00(¥36.0万 @7.20)\`
+   ──── 📈 趋势 ────
+   涨跌：+5.50%(7d) · +10.20%(30d)
+   均线：7 > 49,000(¥35.3万)
+   🔗 [Gate](https://www.gate.com/zh/trade/BTC_USDT) | [Binance](https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot) | [CoinGlass](https://www.coinglass.com/zh/currencies/BTC) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
+
+🔹 *Gate* GT · \`$9.00(¥64.80 @7.20)\`
+   ──── 📈 趋势 ────
+   涨跌：趋势数据暂时不可用
+   🔗 [Gate](https://www.gate.com/zh/trade/GT_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/GT) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
+
+⏰ 更新时间: 2026/9/17 00:00:00
+⚠️ MA（移动平均线）仅供参考，不构成投资建议
+数据展示以 CoinGecko 数据为准`;
+
 describe('isFullReportMessage', () => {
   it('含 🔗 [Gate]( 的完整报告 → true', () => {
     expect(isFullReportMessage(SAMPLE_REPORT)).toBe(true);
@@ -299,5 +337,97 @@ describe('messageToFeishuCard', () => {
       e => e.tag === 'markdown' && e.content.includes('⏰ 更新时间')
     );
     expect(lastActionIdx).toBeGreaterThan(trailerIdx);
+  });
+
+  // --- 排版改造后（🔹 边界切块）的新逻辑 -------------------------------------
+
+  it('新格式单币种报告：按 🔹 边界切块，币种块内空行不影响解析', () => {
+    const card = messageToFeishuCard(NEW_STYLE_REPORT);
+    expect(card).not.toBeNull();
+    if (!card) return;
+
+    // 1 个币种 = 1 markdown + 1 actions + 1 trailer + 1 立即查询 = 4
+    expect(card.card.elements.map((e) => e.tag)).toEqual(['markdown', 'action', 'markdown', 'action']);
+    expect(card.card.header.title.content).toBe('📊 加密货币价格报告 (含技术指标) from local');
+
+    const md = card.card.elements[0];
+    expect(md.tag).toBe('markdown');
+    if (md.tag === 'markdown') {
+      // 币种名加粗
+      expect(md.content).toContain('**比特币**');
+      // 价格行原本是行内 code → 加粗
+      expect(md.content).toContain('**$50,000.00(¥36.0万 @7.20)**');
+      expect(md.content).not.toContain('`');
+      // 分区标题原样保留
+      expect(md.content).toContain('──── 📈 趋势 ────');
+      expect(md.content).toContain('──── ⚡ 日内 ────');
+      expect(md.content).toContain('──── 📌 结论 ────');
+      // 冒号式标签保留
+      expect(md.content).toContain('涨跌：+5.50%(7d)');
+      expect(md.content).toContain('箱体：$48,000.00~$52,000.00');
+      // 链接行被剥离成按钮，不进正文
+      expect(md.content).not.toContain('[Gate](');
+      // 币种块内的分区空行被收敛（不出现 3 个以上连续换行）
+      expect(md.content).not.toMatch(/\n{3,}/);
+    }
+
+    // 尾部（更新时间 / 免责声明）单独成一个 markdown 元素
+    const trailer = card.card.elements[2];
+    expect(trailer.tag).toBe('markdown');
+    if (trailer.tag === 'markdown') {
+      expect(trailer.content).toContain('⏰ 更新时间:');
+      expect(trailer.content).toContain('不构成投资建议');
+    }
+  });
+
+  it('新格式多币种报告：每个币种独立成块，币种之间有 hr', () => {
+    const card = messageToFeishuCard(NEW_STYLE_TWO_COINS);
+    expect(card).not.toBeNull();
+    if (!card) return;
+
+    // 2 个币种：(markdown + action + hr) × 2 - 末尾不分隔 + trailer + 立即查询 = 7
+    expect(card.card.elements.map((e) => e.tag)).toEqual([
+      'markdown', 'action', 'hr', 'markdown', 'action', 'markdown', 'action',
+    ]);
+
+    // 第一个币种块：只有 BTC 的内容，不串到第二个币种
+    const first = card.card.elements[0];
+    expect(first.tag).toBe('markdown');
+    if (first.tag === 'markdown') {
+      expect(first.content).toContain('**比特币**');
+      expect(first.content).not.toContain('**Gate**');
+    }
+    // 第二个币种块：只有 GT 的内容
+    const second = card.card.elements[3];
+    expect(second.tag).toBe('markdown');
+    if (second.tag === 'markdown') {
+      expect(second.content).toContain('**Gate**');
+      expect(second.content).not.toContain('**比特币**');
+    }
+    // 第一个币种 4 个按钮（含 Binance），第二个币种 3 个按钮（没有 Binance）
+    expect((card.card.elements[1] as { actions: unknown[] }).actions).toHaveLength(4);
+    expect((card.card.elements[4] as { actions: unknown[] }).actions).toHaveLength(3);
+  });
+
+  it('报告尾部为空（没有更新时间 / 免责声明）时不生成 trailer 元素', () => {
+    // 去掉尾部（以及尾部前多出来的空行），让报告正好停在链接行
+    const noTrailer = NEW_STYLE_REPORT.split('\n⏰ 更新时间')[0].trimEnd();
+    const card = messageToFeishuCard(noTrailer);
+    expect(card).not.toBeNull();
+    if (!card) return;
+
+    // 1 个币种 = 1 markdown + 1 actions + 1 立即查询 = 3（没有 trailer）
+    expect(card.card.elements.map((e) => e.tag)).toEqual(['markdown', 'action', 'action']);
+    const hasTrailer = card.card.elements.some(
+      e => e.tag === 'markdown' && e.content.includes('⏰ 更新时间')
+    );
+    expect(hasTrailer).toBe(false);
+  });
+
+  it('标题为空时降级为默认标题「加密货币价格报告」', () => {
+    const noTitle = `📊 \n\n🔹 *X* X\n   🔗 [Gate](https://www.gate.com/zh/trade/X_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/X) | [CoinGecko](https://www.coingecko.com/zh/x)\n\n⏰ 更新时间: 2026/9/17 00:00:00`;
+    const card = messageToFeishuCard(noTitle);
+    expect(card).not.toBeNull();
+    expect(card?.card.header.title.content).toBe('📊 加密货币价格报告');
   });
 });

@@ -145,4 +145,32 @@ describe('sendViaBot', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain('network down');
   });
+
+  it('interactive 卡片 payload → content 为 card 的 JSON 字符串', async () => {
+    mockRequest.mockResolvedValue({ code: 0, msg: 'success' });
+    const card = {
+      msg_type: 'interactive' as const,
+      card: {
+        header: { title: { tag: 'plain_text' as const, content: '__test_标题' }, template: 'blue' as const },
+        elements: [{ tag: 'markdown' as const, content: '__test_正文' }],
+      },
+    };
+    const result = await sendViaBot(baseCfg(), card, 'oc_test_receive', 'chat_id');
+    expect(result.ok).toBe(true);
+    expect(mockRequest).toHaveBeenCalledWith(expect.objectContaining({
+      url: '/im/v1/messages?receive_id_type=chat_id',
+      method: 'POST',
+      data: {
+        receive_id: 'oc_test_receive',
+        msg_type: 'interactive',
+        content: JSON.stringify(card.card),
+      },
+    }));
+  });
+
+  it('响应没有 code 字段 → 视为成功', async () => {
+    mockRequest.mockResolvedValue({});
+    const result = await sendViaBot(baseCfg(), { msg_type: 'text', content: { text: '__test_hi' } }, 'oc_test', 'open_id');
+    expect(result).toEqual({ ok: true });
+  });
 });

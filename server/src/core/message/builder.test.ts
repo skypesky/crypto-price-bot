@@ -164,6 +164,121 @@ describe('buildMessage', () => {
     expect(msg).toContain('USDT');
     expect(msg).toContain('tether');
   });
+
+  it('小币种（现价 < 1 美元）：美元最多 6 位小数、人民币不足 1 元用三位有效数字', () => {
+    const r: CoinResult = {
+      coin: fakeCoin({ symbol: 'SHIB', name: '柴犬币', gate_pair: 'SHIB_USDT', gate_slug: 'shiba-inu', cg_id: 'shiba-inu' }),
+      ticker: { last: '0.123456' },
+      indicators: {
+        ma7: 50,          // 1 ≤ 50 < 100 → 美元保留 2 位小数；50×7.2=360 → 360.00 元
+        ma30: 0.051234,   // < 1 美元 → 最多 6 位小数；0.051234×7.2=0.369 < 1 元 → 三位有效数字
+        ma90: 0.123456,   // 与现价持平 → 「=」符号
+        ma180: null,      // 数据不足 → N/A
+        ma365: 0.8,       // < 1 美元 → 保留 2 位小数；0.8×7.2=5.76 → 5.76 元
+        trend7d: 1.5, trend30d: -2.5, trend90d: 0, trend180d: null, trend1y: 3.3,
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 7.2, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z') });
+    // 现价 < 1 美元 → 美元最多 6 位小数；0.123456×7.2=0.889 < 1 元 → 三位有效数字
+    expect(msg).toContain('`$0.123456(¥0.889 @7.20)`');
+    // 均线 50：落在 [1, 100) → 美元保留 2 位小数
+    expect(msg).toContain('7 < 50.00(¥360.00)');
+    // 均线 0.051234：小于 1 美元 → 最多 6 位小数；人民币不足 1 元 → 三位有效数字
+    expect(msg).toContain('30 > 0.051234(¥0.369)');
+    // 现价与均线持平 → 「=」
+    expect(msg).toContain('90 = 0.123456(¥0.889)');
+    expect(msg).toContain('180 N/A');
+    expect(msg).toContain('365 < 0.80(¥5.76)');
+  });
+
+  it('亿级人民币：价格折算超过 1 亿时用「亿」单位', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '20000000' },
+      indicators: {
+        ma7: 20000000, ma30: null, ma90: null, ma180: null, ma365: null,
+        trend7d: 10, trend30d: null, trend90d: null, trend180d: null, trend1y: null,
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 7.2, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z') });
+    // 20000000 × 7.2 = 144000000 → ¥1.44亿
+    expect(msg).toContain('`$20,000,000.00(¥1.44亿 @7.20)`');
+    // 均线同样走「亿」写法；美元 ≥ 100 → 取整
+    expect(msg).toContain('7 = 20,000,000(¥1.44亿)');
+  });
+
+  it('合约情绪带「解读：」前缀时单独成行（去掉前缀重复输出）', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      analysis: {
+        daily: '日线：横盘',
+        weekly: '周线：横盘',
+        monthly: '月线：横盘',
+        yearly: '年线：横盘',
+        insights: { daily: '', weekly: '', monthly: '', yearly: '' },
+        sentiment: ['多空 2.25(多头占优)', '解读：多头情绪偏热，注意回踩'],
+        futures: ['资金费率 0.0100%/8h'],
+        summary: '各周期横盘',
+        advice: '观望',
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    expect(msg).toContain('──── 📊 合约 ────');
+    // 「解读：」条目不混进数据行，而是单独一行且只出现一次前缀
+    expect(msg).toContain('解读：多头情绪偏热，注意回踩');
+    expect((msg.match(/解读：/g) ?? []).length).toBe(1);
+  });
+
+  it('只有合约资金、没有情绪数据时也渲染「合约」分区', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      analysis: {
+        daily: '日线：横盘',
+        weekly: '周线：横盘',
+        monthly: '月线：横盘',
+        yearly: '年线：横盘',
+        insights: { daily: '', weekly: '', monthly: '', yearly: '' },
+        sentiment: [],
+        futures: ['资金费率 0.0100%/8h'],
+        summary: '各周期横盘',
+        advice: '观望',
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    expect(msg).toContain('──── 📊 合约 ────');
+    expect(msg).toContain('资金费率 0.0100%/8h');
+  });
+
+  it('只有「解读：」一条情绪数据时也渲染「合约」分区', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: null,
+      analysis: {
+        daily: '日线：横盘',
+        weekly: '周线：横盘',
+        monthly: '月线：横盘',
+        yearly: '年线：横盘',
+        insights: { daily: '', weekly: '', monthly: '', yearly: '' },
+        sentiment: ['解读：空头情绪主导'],
+        futures: [],
+        summary: '各周期横盘',
+        advice: '观望',
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r]);
+    expect(msg).toContain('──── 📊 合约 ────');
+    expect(msg).toContain('解读：空头情绪主导');
+  });
 });
 
 describe('buildCoinLinks', () => {
@@ -254,10 +369,10 @@ describe('buildCoinLinks', () => {
     };
     const msg = buildMessage([r]);
     // 分区标题带分隔线，四个周期合两行
-    expect(msg).toContain('──────── 🧭 周期研判 ────────');
+    expect(msg).toContain('──── 🧭 周期研判 ────');
     expect(msg).toContain('日线：下跌 -7.99% ｜ 周线：下跌 -9.50%');
     expect(msg).toContain('月线：下跌 -6.37% ｜ 年线：跌破3年年均线 6.37%');
-    expect(msg).toContain('──────── 📊 合约 ────────');
+    expect(msg).toContain('──── 📊 合约 ────');
     expect(msg).toContain('多空 2.25(多头占优)');
     expect(msg).toContain('费率 0.0100%/8h');
     // 四个周期的解读合并成一行（日线·/周线·/月线·/年线·），只有一条「解读」
@@ -267,7 +382,7 @@ describe('buildCoinLinks', () => {
     expect(msg).toContain('；年线·长期上升趋势未破');
     expect((msg.match(/解读：/g) ?? []).length).toBe(1);
     // 结论 + 建议压成一行
-    expect(msg).toContain('──────── 📌 结论 ────────');
+    expect(msg).toContain('──── 📌 结论 ────');
     expect(msg).toContain('各周期一致走弱，下行趋势延续 → 观望');
   });
 
@@ -296,7 +411,7 @@ describe('buildCoinLinks', () => {
       source: 'gate',
     };
     const msg = buildMessage([r]);
-    expect(msg).toContain('──────── ⚡ 日内 ────────');
+    expect(msg).toContain('──── ⚡ 日内 ────');
     expect(msg).toContain('4h：震荡');
     expect(msg).toContain('箱体：$48,000.00~$52,000.00');
     expect(msg).toContain('BOLL4h：上$50,500.00/中$49,500.00/下$48,500.00');
@@ -381,6 +496,57 @@ describe('buildCoinLinks', () => {
     const action = card!.card.elements.find((e) => e.tag === 'action');
     expect(action && 'actions' in action ? action.actions.map((b) => b.text.content) : [])
       .toContain('Gate');
+  });
+
+  // 多币种报告：飞书卡片按 🔹 边界切块，币种之间用 hr 分隔，尾部落在 trailer 里
+  it('多币种报告能按 🔹 边界切成多个币种块', () => {
+    const btc: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '50000.00' },
+      indicators: {
+        ma7: 49000, ma30: 48000, ma90: 45000, ma180: 40000, ma365: 30000,
+        trend7d: 5.5, trend30d: 10.2, trend90d: 20.0, trend180d: 30.0, trend1y: 50.0,
+      },
+      source: 'gate',
+    };
+    const gt: CoinResult = {
+      coin: fakeCoin({ symbol: 'GT', name: 'Gate', gate_pair: 'GT_USDT', gate_slug: 'gate', binance_pair: null, cg_id: 'gatechain-token' }),
+      ticker: { last: '9.00' },
+      indicators: null,
+      source: 'gate',
+    };
+    const card = messageToFeishuCard(buildMessage([btc, gt], { usdtToCny: 7.2, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z') }));
+    expect(card).not.toBeNull();
+    if (!card) return;
+
+    // 2 个币种：(markdown + action + hr) × 2 - 末尾不分隔 + trailer + 立即查询 = 7
+    expect(card.card.elements.map((e) => e.tag)).toEqual([
+      'markdown', 'action', 'hr', 'markdown', 'action', 'markdown', 'action',
+    ]);
+
+    // 第一个币种块只含 BTC 内容，不串到第二个币种
+    const first = card.card.elements[0];
+    expect(first.tag).toBe('markdown');
+    if (first.tag === 'markdown') {
+      expect(first.content).toContain('**比特币**');
+      expect(first.content).not.toContain('Gate');
+      // 分区标题前的空行被收敛成单个空行（飞书 markdown 不显示多余空隙）
+      expect(first.content).not.toMatch(/\n{3,}/);
+    }
+    // 第二个币种块只含 GT 内容
+    const second = card.card.elements[3];
+    expect(second.tag).toBe('markdown');
+    if (second.tag === 'markdown') {
+      expect(second.content).toContain('**Gate**');
+      expect(second.content).not.toContain('比特币');
+    }
+    // 尾部（更新时间 / 免责声明）落在 trailer 元素里
+    const trailer = card.card.elements[5];
+    expect(trailer.tag).toBe('markdown');
+    if (trailer.tag === 'markdown') {
+      expect(trailer.content).toContain('⏰ 更新时间');
+      expect(trailer.content).toContain('不构成投资建议');
+    }
   });
 
   // 结构与可达性检查：如果将来 URL 形态变了（域名 / 路径改了），这些会先炸

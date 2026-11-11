@@ -72,8 +72,8 @@ export function messageToFeishuCard(message: string, opts?: FeishuCardOptions): 
   if (!isFullReportMessage(message)) return null;
   const includeQueryButton = opts?.includeQueryButton ?? true;
 
-  // 报告用空行分隔币种块内的各个分区，所以不能按空行切段 ——
-  // 改按 `🔹` 边界切：每个 `🔹` 开头到下一个 `🔹` 之前是一个币种块。
+  // 币种块之间用空行分隔，块内分区紧邻，按 `🔹` 边界切：
+  // 每个 `🔹` 开头到下一个 `🔹` 之前是一个币种块。
   // 币种块以 `🔗` 链接行结束，之后的内容是报告尾部（更新时间 / 免责声明）。
   type CoinBlock = {
     content: string;
@@ -208,7 +208,7 @@ function parseCoinSection(section: string): {
   // 飞书 markdown 组件不支持行内单反引号（inline code，只支持 ``` 代码块），
   // 留着会原样渲染出 ` 符号 → 转成加粗，保留"重点数据"的视觉区分。
   const content = contentLines.join('\n')
-    // 币种块内的空行是分区视觉分隔，飞书 markdown 里会显示成多余空隙 → 收成单个换行
+    // 防御：多余空行在飞书 markdown 里会显示成明显空隙 → 收成单个换行
     .replace(/\n{3,}/g, '\n\n')
     .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '**$1**')
     .replace(/`([^`\n]+)`/g, '**$1**');
