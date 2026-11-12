@@ -3,8 +3,22 @@ import Database from 'better-sqlite3';
 import { setDb, closeDb } from '../db.js';
 import { initDefaults } from '../models/setting.js';
 import { buildMessage, buildIndicators, buildCoinLinks, type CoinResult } from './builder.js';
-import { messageToFeishuCard } from './formatter.js';
+import { messageToFeishuCard, type FeishuCardElement } from './formatter.js';
 import type { Coin } from '../models/coin.js';
+
+/** 取卡片元素里所有可见文本，便于按语义断言。 */
+function elementText(e: FeishuCardElement): string {
+  switch (e.tag) {
+    case 'markdown':
+      return e.content;
+    case 'column_set':
+      return e.columns.map(elementText).join('\n');
+    case 'column':
+      return e.elements.map(elementText).join('\n');
+    default:
+      return '';
+  }
+}
 
 let customDb: Database.Database;
 
@@ -60,7 +74,7 @@ describe('buildMessage', () => {
     expect(msg).toContain('比特币');
     expect(msg).toContain('BTC');
     expect(msg).toContain('50,000');
-    // 涨跌幅压成一行：`涨跌：+5.50%(7d) · +10.20%(30d) · …`
+    // 涨跌幅按宽度折行：首行 `涨跌：+5.50%(7d) · +10.20%(30d) · …`
     expect(msg).toContain('涨跌：+5.50%(7d) · +10.20%(30d)');
     // 价格行：美元 + 紧凑人民币（万）+ 汇率，压到一行
     expect(msg).toContain('`$50,000.00(¥36.0万 @7.20)`');
@@ -73,6 +87,25 @@ describe('buildMessage', () => {
     expect(msg).toContain('90 > 45,000(¥32.4万)');
     expect(msg).toContain('180 > 40,000(¥28.8万)');
     expect(msg).toContain('365 > 30,000(¥21.6万)');
+  });
+
+  it('长行按显示宽度折行，续行对齐到标签后的内容起点', () => {
+    const r: CoinResult = {
+      coin: fakeCoin(),
+      ticker: { last: '167.72' },
+      indicators: {
+        ma7: 186, ma30: 193, ma90: 144, ma180: 105, ma365: 89.57,
+        trend7d: -11.22, trend30d: -20.01, trend90d: 188.13, trend180d: 107.06, trend1y: 84.75,
+      },
+      source: 'gate',
+    };
+    const msg = buildMessage([r], { usdtToCny: 6.67, timezone: 'UTC', now: new Date('2026-06-16T01:00:00Z') });
+    // 涨跌：3 项一行，续行缩进 9 空格（对齐到「涨跌：」之后）
+    expect(msg).toContain('   涨跌：-11.22%(7d) · -20.01%(30d) · +188.13%(90d)\n         +107.06%(180d) · +84.75%(1y)');
+    // 均线：2 项一行，续行同样对齐
+    expect(msg).toContain('   均线：7 < 186(¥1,240.62) · 30 < 193(¥1,287.31)\n         90 > 144(¥960.48)');
+    // 四位数人民币带千位分隔
+    expect(msg).toContain('¥1,240.62');
   });
 
   it('CI 触发时标题显示 [ci]', () => {
@@ -368,18 +401,20 @@ describe('buildCoinLinks', () => {
       source: 'gate',
     };
     const msg = buildMessage([r]);
-    // 分区标题带分隔线，四个周期合两行
+    // 分区标题带分隔线，四个周期各占一行
     expect(msg).toContain('──── 🧭 周期研判 ────');
-    expect(msg).toContain('日线：下跌 -7.99% ｜ 周线：下跌 -9.50%');
-    expect(msg).toContain('月线：下跌 -6.37% ｜ 年线：跌破3年年均线 6.37%');
+    expect(msg).toContain('日线：下跌 -7.99%');
+    expect(msg).toContain('周线：下跌 -9.50%');
+    expect(msg).toContain('月线：下跌 -6.37%');
+    expect(msg).toContain('年线：跌破3年年均线 6.37%');
     expect(msg).toContain('──── 📊 合约 ────');
     expect(msg).toContain('多空 2.25(多头占优)');
     expect(msg).toContain('费率 0.0100%/8h');
-    // 四个周期的解读合并成一行（日线·/周线·/月线·/年线·），只有一条「解读」
+    // 四个周期的解读逐条展开（日线·/周线·/月线·/年线·），只有一条「解读」
     expect(msg).toContain('解读：日线·短期空头占优，均线压制');
-    expect(msg).toContain('；周线·中期偏弱');
-    expect(msg).toContain('；月线·长期趋势向上');
-    expect(msg).toContain('；年线·长期上升趋势未破');
+    expect(msg).toContain('周线·中期偏弱');
+    expect(msg).toContain('月线·长期趋势向上');
+    expect(msg).toContain('年线·长期上升趋势未破');
     expect((msg.match(/解读：/g) ?? []).length).toBe(1);
     // 结论 + 建议压成一行
     expect(msg).toContain('──── 📌 结论 ────');
@@ -491,11 +526,12 @@ describe('buildCoinLinks', () => {
     };
     const card = messageToFeishuCard(buildMessage([r], { usdtToCny: 7.2 }));
     expect(card).not.toBeNull();
-    const markdown = card!.card.elements.find((e) => e.tag === 'markdown');
-    expect(markdown && 'content' in markdown ? markdown.content : '').toContain('4h：震荡');
-    const action = card!.card.elements.find((e) => e.tag === 'action');
-    expect(action && 'actions' in action ? action.actions.map((b) => b.text.content) : [])
-      .toContain('Gate');
+    const text = card!.card.body.elements.map(elementText).join('\n');
+    expect(text).toContain('**4h**：震荡');
+    expect(text).toContain('**BOLL4h**');
+    expect(text).toContain('**BOLL1h**');
+    // 链接改为 Markdown 行内链接
+    expect(text).toContain('[Gate](https://www.gate.com/zh/trade/BTC_USDT)');
   });
 
   // 多币种报告：飞书卡片按 🔹 边界切块，币种之间用 hr 分隔，尾部落在 trailer 里
@@ -519,34 +555,25 @@ describe('buildCoinLinks', () => {
     expect(card).not.toBeNull();
     if (!card) return;
 
-    // 2 个币种：(markdown + action + hr) × 2 - 末尾不分隔 + trailer + 立即查询 = 7
-    expect(card.card.elements.map((e) => e.tag)).toEqual([
-      'markdown', 'action', 'hr', 'markdown', 'action', 'markdown', 'action',
-    ]);
+    // 币种之间一个 hr
+    const elements = card.card.body.elements;
+    expect(elements.filter((e) => e.tag === 'hr')).toHaveLength(1);
+    const hrIdx = elements.findIndex((e) => e.tag === 'hr');
 
     // 第一个币种块只含 BTC 内容，不串到第二个币种
-    const first = card.card.elements[0];
-    expect(first.tag).toBe('markdown');
-    if (first.tag === 'markdown') {
-      expect(first.content).toContain('**比特币**');
-      expect(first.content).not.toContain('Gate');
-      // 分区标题前的空行被收敛成单个空行（飞书 markdown 不显示多余空隙）
-      expect(first.content).not.toMatch(/\n{3,}/);
-    }
+    const firstText = elements.slice(0, hrIdx).map(elementText).join('\n');
+    expect(firstText).toContain('**比特币**');
+    expect(firstText).toContain('[Binance](');
+
     // 第二个币种块只含 GT 内容
-    const second = card.card.elements[3];
-    expect(second.tag).toBe('markdown');
-    if (second.tag === 'markdown') {
-      expect(second.content).toContain('**Gate**');
-      expect(second.content).not.toContain('比特币');
-    }
-    // 尾部（更新时间 / 免责声明）落在 trailer 元素里
-    const trailer = card.card.elements[5];
-    expect(trailer.tag).toBe('markdown');
-    if (trailer.tag === 'markdown') {
-      expect(trailer.content).toContain('⏰ 更新时间');
-      expect(trailer.content).toContain('不构成投资建议');
-    }
+    const secondText = elements.slice(hrIdx + 1).map(elementText).join('\n');
+    expect(secondText).toContain('**Gate**');
+    expect(secondText).not.toContain('比特币');
+    expect(secondText).not.toContain('[Binance](');
+
+    // 更新时间在副标题，免责声明在最后
+    expect(card.card.header.subtitle?.content).toContain('⏰ 更新时间');
+    expect(secondText).toContain('不构成投资建议');
   });
 
   // 结构与可达性检查：如果将来 URL 形态变了（域名 / 路径改了），这些会先炸

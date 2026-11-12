@@ -2,9 +2,56 @@ import { describe, it, expect } from 'vitest';
 import {
   isFullReportMessage,
   messageToFeishuCard,
+  messageToFeishuCards,
   normalizeMessageForTextChannel,
+  type FeishuCardElement,
   type FeishuCardPayload,
 } from './formatter.js';
+
+/** 取卡片元素里所有可见文本，便于按语义断言（不依赖元素顺序）。 */
+function elementText(e: FeishuCardElement): string {
+  switch (e.tag) {
+    case 'markdown':
+      return e.content;
+    case 'column_set':
+      return e.columns.map(elementText).join('\n');
+    case 'column':
+      return e.elements.map(elementText).join('\n');
+    default:
+      return '';
+  }
+}
+
+/** 整张卡片的可见文本。 */
+function cardText(card: FeishuCardPayload): string {
+  return card.card.body.elements.map(elementText).join('\n');
+}
+
+/** 递归统计卡片元素数量（飞书 2.0 上限 200）。 */
+function countElements(elements: FeishuCardElement[]): number {
+  let count = 0;
+  for (const e of elements) {
+    count += 1;
+    if (e.tag === 'column_set') {
+      for (const c of e.columns) count += 1 + countElements(c.elements);
+    } else if (e.tag === 'column') {
+      count += countElements(e.elements);
+    }
+  }
+  return count;
+}
+
+/** 递归找卡片里所有指定 tag 的元素。 */
+function findAll(card: FeishuCardPayload, tag: FeishuCardElement['tag']): FeishuCardElement[] {
+  const out: FeishuCardElement[] = [];
+  const walk = (e: FeishuCardElement) => {
+    if (e.tag === tag) out.push(e);
+    if (e.tag === 'column_set') e.columns.forEach(walk);
+    else if (e.tag === 'column') e.elements.forEach(walk);
+  };
+  card.card.body.elements.forEach(walk);
+  return out;
+}
 
 describe('normalizeMessageForTextChannel', () => {
   it('CRLF → LF', () => {
@@ -77,8 +124,11 @@ const NEW_STYLE_REPORT = `📊 *加密货币价格报告 (含技术指标) from 
 
 🔹 *比特币* BTC · \`$50,000.00(¥36.0万 @7.20)\`
    ──── 📈 趋势 ────
-   涨跌：+5.50%(7d) · +10.20%(30d) · N/A(90d) · N/A(180d) · N/A(1y)
-   均线：7 > 49,000(¥35.3万) · 30 > 48,000(¥34.6万) · 90 > 45,000(¥32.4万) · 180 > 40,000(¥28.8万) · 365 > 30,000(¥21.6万)
+   涨跌：+5.50%(7d) · +10.20%(30d) · N/A(90d)
+         N/A(180d) · N/A(1y)
+   均线：7 > 49,000(¥35.3万) · 30 > 48,000(¥34.6万)
+         90 > 45,000(¥32.4万) · 180 > 40,000(¥28.8万)
+         365 > 30,000(¥21.6万)
    ──── ⚡ 日内 ────
    4h：震荡 · 箱体：$48,000.00~$52,000.00(8.0% 中部50%)
    BOLL4h：上$50,500.00/中$49,500.00/下$48,500.00(带宽4.2% 正常)
@@ -123,311 +173,212 @@ describe('isFullReportMessage', () => {
   });
 });
 
-describe('messageToFeishuCard', () => {
-  it('完整报告：生成 header + 每币种 markdown+actions + trailer', () => {
-    const card = messageToFeishuCard(SAMPLE_REPORT);
+describe('messageToFeishuCard（JSON 2.0）', () => {
+  it('顶层使用 schema 2.0 + header 标题/副标题 + body.elements', () => {
+    const card = messageToFeishuCard(NEW_STYLE_REPORT);
     expect(card).not.toBeNull();
     if (!card) return;
 
     expect(card.msg_type).toBe('interactive');
+    expect(card.card.schema).toBe('2.0');
+    expect(card.card.config.width_mode).toBe('fill');
     expect(card.card.header.title.content).toBe('📊 加密货币价格报告 (含技术指标) from local');
-    expect(card.card.header.template).toBe('blue');
-
-    // 1 个币种 = 1 markdown + 1 actions + 1 trailer markdown + 1 立即查询按钮 = 4 element
-    expect(card.card.elements).toHaveLength(4);
-
-    // 第 1 个：币种 markdown 块
-    const md = card.card.elements[0];
-    expect(md.tag).toBe('markdown');
-    if (md.tag === 'markdown') {
-      // *X* 转为 **X**（飞书加粗）
-      expect(md.content).toContain('**比特币**');
-      expect(md.content).not.toMatch(/(?<!\*)\*比特币\*(?!\*)/);
-      // 链接行不进入 markdown 块（会单独渲染为按钮）
-      expect(md.content).not.toContain('[Gate](');
-      // 行内单反引号被转成加粗（飞书 markdown 不支持 inline code，留着会原样显示 `）
-      expect(md.content).toContain('**$50,000.00(¥360,000.00)[汇率: 7.20]**');
-      expect(md.content).not.toContain('`');
-      expect(md.content).toContain('MA7:');
-    }
-
-    // 第 2 个：action 按钮容器（4 个按钮）。飞书 schema：容器 tag 必须是 "action"（单数），
-    // 数组字段名才是 "actions"。复数 tag 会触发 "unsupported type of block; ErrorValue: actions"。
-    const actions = card.card.elements[1];
-    expect(actions.tag).toBe('action');
-    if (actions.tag === 'action') {
-      expect(actions.actions).toHaveLength(4);
-      expect(actions.actions[0]).toMatchObject({
-        tag: 'button',
-        text: { tag: 'plain_text', content: 'Gate' },
-        type: 'primary',
-        url: 'https://www.gate.com/zh/trade/BTC_USDT',
-      });
-      expect(actions.actions[1]).toMatchObject({
-        tag: 'button',
-        text: { tag: 'plain_text', content: 'Binance' },
-        type: 'default',
-        url: 'https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot',
-      });
-      expect(actions.actions[2]).toMatchObject({
-        tag: 'button',
-        text: { tag: 'plain_text', content: 'CoinGlass' },
-        type: 'default',
-        url: 'https://www.coinglass.com/zh/currencies/BTC',
-      });
-      expect(actions.actions[3]).toMatchObject({
-        tag: 'button',
-        text: { tag: 'plain_text', content: 'CoinGecko' },
-        type: 'default',
-        url: 'https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin',
-      });
-    }
-
-    // 第 3 个：trailer markdown
-    const trailer = card.card.elements[2];
-    expect(trailer.tag).toBe('markdown');
-    if (trailer.tag === 'markdown') {
-      expect(trailer.content).toContain('⏰ 更新时间:');
-      expect(trailer.content).toContain('⚠️ MA（移动平均线）仅供参考');
-      expect(trailer.content).toContain('数据展示以 CoinGecko 数据为准');
-    }
+    expect(card.card.header.subtitle?.content).toContain('⏰ 更新时间:');
+    expect(card.card.body.direction).toBe('vertical');
+    expect(card.card.body.elements.length).toBeGreaterThan(0);
   });
 
-  it('binance_pair 为空时只渲染 Gate + CoinGlass + CoinGecko 三个按钮', () => {
-    const card = messageToFeishuCard(SAMPLE_GT_REPORT);
-    expect(card).not.toBeNull();
-    if (!card) return;
+  it('币种头部是 column_set 双列（币种 / 价格）', () => {
+    const card = messageToFeishuCard(NEW_STYLE_REPORT)!;
+    // 整个币种包在灰底面板里，头部是面板内的双列 column_set
+    const header = findAll(card, 'column_set').find(
+      (e) => e.tag === 'column_set' && e.columns.length === 2 && elementText(e).includes('**比特币**')
+    );
+    expect(header?.tag).toBe('column_set');
+    if (header?.tag !== 'column_set') return;
+    expect(elementText(header.columns[0]!)).toContain('**比特币**');
+    expect(elementText(header.columns[1]!)).toContain('**$50,000.00(¥36.0万 @7.20)**');
+  });
 
-    const actions = card.card.elements[1];
-    expect(actions.tag).toBe('action');
-    if (actions.tag === 'action') {
-      expect(actions.actions).toHaveLength(3);
-      expect(actions.actions.map(a => a.text.content)).toEqual(['Gate', 'CoinGlass', 'CoinGecko']);
-      // 没有 Binance 按钮
-      expect(actions.actions.find(a => a.text.content === 'Binance')).toBeUndefined();
-    }
+  it('趋势 / 均线使用并排双列面板', () => {
+    const card = messageToFeishuCard(NEW_STYLE_REPORT)!;
+    const text = cardText(card);
+    expect(text).toContain('**涨跌**');
+    expect(text).toContain('**7d** **+5.50%**');
+    expect(text).toContain('**1y** **N/A**');
+    expect(text).toContain('**均线**');
+    expect(text).toContain('**7** > 49,000(¥35.3万)');
+    // 涨跌 / 均线并排成一个双列 column_set
+    const trendPanel = findAll(card, 'column_set').find(
+      (e) => e.tag === 'column_set' && e.columns.length === 2 && elementText(e).includes('**涨跌**')
+    );
+    expect(trendPanel).toBeTruthy();
+  });
+
+  it('日内指标按 4h / 1h 合并，方向行与建议保留', () => {
+    const card = messageToFeishuCard(NEW_STYLE_REPORT)!;
+    const text = cardText(card);
+    expect(text).toContain('**BOLL4h** 上$50,500.00/中$49,500.00/下$48,500.00(带宽4.2% 正常)');
+    expect(text).toContain('**4h**：震荡 · **箱体**：$48,000.00~$52,000.00');
+    expect(text).toContain('💡 箱体中部观望，等边缘或放量突破');
+  });
+
+  it('周期研判 / 合约使用紧凑面板 + 解读列表', () => {
+    const report = `📊 *加密货币价格报告 (含技术指标) from local*
+
+🔹 *比特币* BTC · \`$50,000.00(¥36.0万 @7.20)\`
+   ──── 🧭 周期研判 ────
+   日线：下跌 -7.99%
+   周线：下跌 -9.50%
+   月线：下跌 -6.37%
+   年线：跌破3年年均线 6.37%
+   解读：日线·短期空头占优
+         周线·中期偏弱
+   ──── 📊 合约 ────
+   多空：2.25(多头占优)
+   费率：0.010%/8h(年化10.9%,多头付费意愿尚可)
+   解读：多空分歧
+   🔗 [Gate](https://www.gate.com/zh/trade/BTC_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/BTC) | [CoinGecko](https://www.coingecko.com/zh/x)`;
+    const card = messageToFeishuCard(report)!;
+    const text = cardText(card);
+
+    expect(text).toContain('**日线** 下跌 -7.99%');
+    expect(text).toContain('**年线** 跌破3年年均线 6.37%');
+    expect(text).toContain('**解读**\n- 日线·短期空头占优\n- 周线·中期偏弱');
+
+    expect(text).toContain('**多空** 2.25(多头占优)');
+    expect(text).toContain('- 多空分歧');
+  });
+
+  it('结论使用灰底强调块，动作加粗', () => {
+    const card = messageToFeishuCard(NEW_STYLE_REPORT)!;
+    const text = cardText(card);
+    expect(text).toContain('各周期一致走弱 → **观望**');
+    const grey = findAll(card, 'column').find(
+      (e) => e.tag === 'column' && e.background_style === 'grey'
+    );
+    expect(grey).toBeTruthy();
+  });
+
+  it('链接改为 Markdown 行内链接，卡片不含交互按钮', () => {
+    const card = messageToFeishuCard(NEW_STYLE_REPORT)!;
+    const text = cardText(card);
+    expect(text).toContain('[Gate](https://www.gate.com/zh/trade/BTC_USDT)');
+    expect(text).toContain('[CoinGecko](');
+    expect(text).not.toContain('立即查询');
+  });
+
+  it('旧格式报告仍能解析（链接 / 价格行保留）', () => {
+    const card = messageToFeishuCard(SAMPLE_REPORT);
+    expect(card).not.toBeNull();
+    const text = card ? cardText(card) : '';
+    expect(text).toContain('**比特币**');
+    expect(text).toContain('$50,000.00');
+    expect(text).toContain('MA7:');
+    expect(text).toContain('[Gate](');
+    // 行内单反引号转成加粗，不残留反引号
+    expect(text).not.toContain('`');
+  });
+
+  it('binance_pair 为空时链接行只包含 Gate + CoinGlass + CoinGecko', () => {
+    const card = messageToFeishuCard(SAMPLE_GT_REPORT)!;
+    const text = cardText(card);
+    expect(text).toContain('[Gate](');
+    expect(text).toContain('[CoinGlass](');
+    expect(text).toContain('[CoinGecko](');
+    expect(text).not.toContain('[Binance](');
   });
 
   it('汇率兜底时 header 切换为橙色模板', () => {
     const fallback = SAMPLE_REPORT.replace('from local', 'from local ⚠️汇率兜底');
-    const card = messageToFeishuCard(fallback);
-    expect(card?.card.header.template).toBe('orange');
-    expect(card?.card.header.title.content).toContain('⚠️汇率兜底');
+    expect(messageToFeishuCard(fallback)?.card.header.template).toBe('orange');
+    expect(messageToFeishuCard(fallback)?.card.header.title.content).toContain('⚠️汇率兜底');
   });
 
-  it('多个币种：每个币种独立生成 markdown+actions，币种间用 hr 分隔', () => {
-    const twoCoins = SAMPLE_REPORT + '\n\n' + SAMPLE_GT_REPORT.split('\n\n').slice(2).join('\n\n');
-    // 构造一个含 2 个币种的消息
-    const two = `📊 *加密货币价格报告 (含技术指标) from local*
+  it('多个币种：每个币种独立成块，币种之间有 hr', () => {
+    const card = messageToFeishuCard(NEW_STYLE_TWO_COINS)!;
+    const elements = card.card.body.elements;
+    expect(elements.filter((e) => e.tag === 'hr')).toHaveLength(1);
 
-🔹 *比特币* (BTC)
-   💵 \`$50,000.00(¥360,000.00)[汇率: 7.20]\`
-   🔗 [Gate](https://www.gate.com/zh/trade/BTC_USDT) | [Binance](https://www.binance.com/zh-CN/trade/BTC_USDT?type=spot) | [CoinGlass](https://www.coinglass.com/zh/currencies/BTC) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/bitcoin)
+    const hrIdx = elements.findIndex((e) => e.tag === 'hr');
+    const firstText = elements.slice(0, hrIdx).map(elementText).join('\n');
+    const secondText = elements.slice(hrIdx + 1).map(elementText).join('\n');
+    expect(firstText).toContain('**比特币**');
+    expect(firstText).not.toContain('**Gate**');
+    expect(secondText).toContain('**Gate**');
+    expect(secondText).not.toContain('**比特币**');
+  });
 
-🔹 *Gate* (GT)
-   💵 \`$9.00(¥63.00)[汇率: 7.00]\`
-   🔗 [Gate](https://www.gate.com/zh/trade/GT_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/GT) | [CoinGecko](https://www.coingecko.com/zh/%E6%95%B0%E5%AD%97%E8%B4%A7%E5%B8%81/gatechain-token)
+  it('9 币报告压成单张卡片，体积与元素数都在限制内', () => {
+    const coinBlock = (i: number) => [
+      `🔹 *币种${i}* C${i} · \`$100.00(¥666.00 @6.66)\``,
+      '   ──── 📈 趋势 ────',
+      '   涨跌：-11.45%(7d) · -20.22%(30d) · +187.37%(90d)',
+      '         +106.52%(180d) · +84.27%(1y)',
+      '   均线：7 < 186(¥1,238.76) · 30 < 193(¥1,285.38)',
+      '         90 > 144(¥959.04) · 180 > 105(¥699.30)',
+      '         365 > 89.57(¥596.54)',
+      '   ──── ⚡ 日内 ────',
+      '   4h：偏空 · 箱体：$166.04~$195.35(16.2% 下沿4%)',
+      '   BOLL4h：上$206.65/中$188.31/下$169.97(带宽19.5% 扩张)',
+      '     MACD：空头动能增强 · RSI：26.4(超卖)',
+      '   ──── 🧭 周期研判 ────',
+      '   日线：大幅走弱 -11.45%，连阴2根，跌破MA7 9.93%，跌破MA30 13.40%，均线纠缠，日均振幅8.0%',
+      '   周线：大幅走弱 -13.02%，跌破MA5 11.62%，站上MA20 34.92%，距13周高点回撤55.18%',
+      '   月线：强势上涨 +173.78%，跌破MA3 23.41%，站上MA12 59.99%',
+      '   年线：强势上涨 +140.66%，连阴2年，站上3年年均线 46.28%',
+      '   解读：日线·短期空头占优，均线压制，反弹先看能否收复 MA7',
+      '         周线·中期回调但 MA20 未破，趋势结构尚在，关注 MA20 支撑',
+      '   ──── 📊 合约 ────',
+      '   多空：1.04(多空均衡，7日均 1.13↓)',
+      '   大户：0.34(空头占优)',
+      '   费率：0.010%/8h(年化11.0%,多头付费意愿尚可)',
+      '   ──── 📌 结论 ────',
+      '   周期方向分化，趋势待观察 → 观望',
+      `   🔗 [Gate](https://www.gate.com/zh/trade/C${i}_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/C${i}) | [CoinGecko](https://www.coingecko.com/zh/x)`,
+    ].join('\n');
+    const report = `📊 *加密货币价格报告 (含技术指标) from local*
 
-⏰ 更新时间: 2026/9/17 00:00:00
+${Array.from({ length: 9 }, (_, i) => coinBlock(i + 1)).join('\n\n')}
+
+⏰ 更新时间: 2026/11/12 10:00:00
 ⚠️ MA（移动平均线）仅供参考`;
-    const card = messageToFeishuCard(two);
-    expect(card).not.toBeNull();
-    if (!card) return;
 
-    // 2 个币种：(md + actions + hr) * 2 - 1 (末尾不加分隔) + 1 trailer + 1 立即查询按钮 = 7
-    expect(card.card.elements).toHaveLength(7);
-    expect(card.card.elements[0].tag).toBe('markdown');
-    expect(card.card.elements[1].tag).toBe('action');
-    expect(card.card.elements[2].tag).toBe('hr');
-    expect(card.card.elements[3].tag).toBe('markdown');
-    expect(card.card.elements[4].tag).toBe('action');
-    expect(card.card.elements[5].tag).toBe('markdown');
-    expect(card.card.elements[6].tag).toBe('action');
+    const cards = messageToFeishuCards(report);
+    // 9 币报告压成单张卡片（用户要求只发一条消息）
+    expect(cards).toHaveLength(1);
+    for (const card of cards) {
+      expect(Buffer.byteLength(JSON.stringify(card), 'utf8')).toBeLessThanOrEqual(30000);
+      expect(countElements(card.card.body.elements)).toBeLessThanOrEqual(200);
+    }
+    // 单卡时标题不带分页后缀
+    expect(cards[0]!.card.header.title.content).toBe('📊 加密货币价格报告 (含技术指标) from local');
 
-    // 第一个币种 4 个按钮，第二个币种 3 个按钮
-    expect((card.card.elements[1] as { actions: unknown[] }).actions).toHaveLength(4);
-    expect((card.card.elements[4] as { actions: unknown[] }).actions).toHaveLength(3);
+    for (let i = 1; i <= 9; i++) {
+      expect(cardText(cards[0]!)).toContain(`**币种${i}**`);
+    }
+    expect(cardText(cards[0]!)).toContain('仅供参考');
+  });
+
+  it('报告尾部为空时不生成 footer 小字', () => {
+    const noTrailer = NEW_STYLE_REPORT.split('\n⏰ 更新时间')[0].trimEnd();
+    const card = messageToFeishuCard(noTrailer)!;
+    expect(card.card.header.subtitle).toBeUndefined();
+    expect(cardText(card)).not.toContain('⏰ 更新时间');
+    expect(cardText(card)).not.toContain('不构成投资建议');
   });
 
   it('非完整报告（价格预警等）返回 null', () => {
     expect(messageToFeishuCard('🚨 价格预警\n\n🔺 比特币 (BTC) 突破上限')).toBeNull();
   });
 
-  it('消息中没有可识别的币种段时返回 null（防御：格式被破坏）', () => {
-    const broken = '📊 *测试*\n\n随便一段文本\n\n⏰ 更新时间';
-    // 不含 🔗 [Gate]( → isFullReportMessage 已是 false
-    expect(messageToFeishuCard(broken)).toBeNull();
-  });
-
   it('完整报告但缺 CoinGecko 链接 → 返回 null（防御 buildMessage 格式破坏）', () => {
-    // 手工构造一个含 🔗 但没 coingecko 的恶意/异常输入
     const weird = '📊 *测试*\n\n🔹 *X* (X)\n   🔗 [Gate](https://gate.com/x-x)\n\n⏰ 时间';
     expect(messageToFeishuCard(weird)).toBeNull();
   });
 
-  it('输出的 msg_type 必须是 interactive（飞书 webhook 用）', () => {
-    const card: FeishuCardPayload | null = messageToFeishuCard(SAMPLE_REPORT);
-    expect(card?.msg_type).toBe('interactive');
-  });
-
-  it('includeQueryButton=false：不渲染「立即查询」回调按钮，但保留 url 跳转按钮', () => {
-    const card = messageToFeishuCard(SAMPLE_REPORT, { includeQueryButton: false });
-    expect(card).not.toBeNull();
-    if (!card) return;
-
-    // 没有「立即查询」按钮（webhook 无事件订阅通道，避免死按钮）
-    const queryBtn = card.card.elements.find(
-      e => e.tag === 'action' && e.actions.some(a => a.text.content === '🔄 立即查询')
-    );
-    expect(queryBtn).toBeUndefined();
-
-    // 但 Gate / Binance / CoinGlass / CoinGecko 的 url 按钮仍在
-    const actions = card.card.elements.find(e => e.tag === 'action');
-    expect(actions?.tag).toBe('action');
-    if (actions?.tag !== 'action') return;
-    expect(actions.actions.map(a => a.text.content)).toEqual(['Gate', 'Binance', 'CoinGlass', 'CoinGecko']);
-    expect(actions.actions.every(a => typeof a.url === 'string' && a.url.startsWith('http'))).toBe(true);
-  });
-
-  it('includeQueryButton 默认 true：渲染「立即查询」按钮', () => {
-    const card = messageToFeishuCard(SAMPLE_REPORT);
-    const hasQuery = card?.card.elements.some(
-      e => e.tag === 'action' && e.actions.some(a => a.text.content === '🔄 立即查询')
-    );
-    expect(hasQuery).toBe(true);
-  });
-
-  it('行内单反引号转成加粗：飞书 markdown 不支持 inline code', () => {
-    const card = messageToFeishuCard(SAMPLE_REPORT);
-    const md = card?.card.elements.find(e => e.tag === 'markdown');
-    expect(md?.tag).toBe('markdown');
-    if (md?.tag !== 'markdown') return;
-
-    // 卡片里不应残留任何反引号（会原样渲染成 ` 符号）
-    expect(md.content).not.toContain('`');
-    // 币种名的 *X* 仍是加粗，且未被反引号转换破坏
-    expect(md.content).toContain('**比特币**');
-    // 价格行原本是 `code`，现在是加粗
-    expect(md.content).toContain('**$50,000.00(¥360,000.00)[汇率: 7.20]**');
-  });
-
-  it('卡片末尾有「立即查询」按钮', () => {
-    const card = messageToFeishuCard(SAMPLE_REPORT);
-    expect(card).not.toBeNull();
-    if (!card) return;
-
-    // 找到最后一个 action 元素
-    const lastActionIdx = card.card.elements.findIndex(
-      e => e.tag === 'action' && e.actions.some(a => a.text.content === '🔄 立即查询')
-    );
-    expect(lastActionIdx).toBeGreaterThanOrEqual(0);
-
-    const lastAction = card.card.elements[lastActionIdx];
-    if (lastAction.tag !== 'action') return;
-    expect(lastAction.actions).toHaveLength(1);
-    expect(lastAction.actions[0]).toMatchObject({
-      tag: 'button',
-      text: { tag: 'plain_text', content: '🔄 立即查询' },
-      type: 'primary',
-      value: { action: 'query_now', v: 1 },
-    });
-
-    // 「立即查询」按钮必须在 trailer 之后
-    const trailerIdx = card.card.elements.findIndex(
-      e => e.tag === 'markdown' && e.content.includes('⏰ 更新时间')
-    );
-    expect(lastActionIdx).toBeGreaterThan(trailerIdx);
-  });
-
-  // --- 排版改造后（🔹 边界切块）的新逻辑 -------------------------------------
-
-  it('新格式单币种报告：按 🔹 边界切块，币种块内空行不影响解析', () => {
-    const card = messageToFeishuCard(NEW_STYLE_REPORT);
-    expect(card).not.toBeNull();
-    if (!card) return;
-
-    // 1 个币种 = 1 markdown + 1 actions + 1 trailer + 1 立即查询 = 4
-    expect(card.card.elements.map((e) => e.tag)).toEqual(['markdown', 'action', 'markdown', 'action']);
-    expect(card.card.header.title.content).toBe('📊 加密货币价格报告 (含技术指标) from local');
-
-    const md = card.card.elements[0];
-    expect(md.tag).toBe('markdown');
-    if (md.tag === 'markdown') {
-      // 币种名加粗
-      expect(md.content).toContain('**比特币**');
-      // 价格行原本是行内 code → 加粗
-      expect(md.content).toContain('**$50,000.00(¥36.0万 @7.20)**');
-      expect(md.content).not.toContain('`');
-      // 分区标题原样保留
-      expect(md.content).toContain('──── 📈 趋势 ────');
-      expect(md.content).toContain('──── ⚡ 日内 ────');
-      expect(md.content).toContain('──── 📌 结论 ────');
-      // 冒号式标签保留
-      expect(md.content).toContain('涨跌：+5.50%(7d)');
-      expect(md.content).toContain('箱体：$48,000.00~$52,000.00');
-      // 链接行被剥离成按钮，不进正文
-      expect(md.content).not.toContain('[Gate](');
-      // 币种块内的分区空行被收敛（不出现 3 个以上连续换行）
-      expect(md.content).not.toMatch(/\n{3,}/);
-    }
-
-    // 尾部（更新时间 / 免责声明）单独成一个 markdown 元素
-    const trailer = card.card.elements[2];
-    expect(trailer.tag).toBe('markdown');
-    if (trailer.tag === 'markdown') {
-      expect(trailer.content).toContain('⏰ 更新时间:');
-      expect(trailer.content).toContain('不构成投资建议');
-    }
-  });
-
-  it('新格式多币种报告：每个币种独立成块，币种之间有 hr', () => {
-    const card = messageToFeishuCard(NEW_STYLE_TWO_COINS);
-    expect(card).not.toBeNull();
-    if (!card) return;
-
-    // 2 个币种：(markdown + action + hr) × 2 - 末尾不分隔 + trailer + 立即查询 = 7
-    expect(card.card.elements.map((e) => e.tag)).toEqual([
-      'markdown', 'action', 'hr', 'markdown', 'action', 'markdown', 'action',
-    ]);
-
-    // 第一个币种块：只有 BTC 的内容，不串到第二个币种
-    const first = card.card.elements[0];
-    expect(first.tag).toBe('markdown');
-    if (first.tag === 'markdown') {
-      expect(first.content).toContain('**比特币**');
-      expect(first.content).not.toContain('**Gate**');
-    }
-    // 第二个币种块：只有 GT 的内容
-    const second = card.card.elements[3];
-    expect(second.tag).toBe('markdown');
-    if (second.tag === 'markdown') {
-      expect(second.content).toContain('**Gate**');
-      expect(second.content).not.toContain('**比特币**');
-    }
-    // 第一个币种 4 个按钮（含 Binance），第二个币种 3 个按钮（没有 Binance）
-    expect((card.card.elements[1] as { actions: unknown[] }).actions).toHaveLength(4);
-    expect((card.card.elements[4] as { actions: unknown[] }).actions).toHaveLength(3);
-  });
-
-  it('报告尾部为空（没有更新时间 / 免责声明）时不生成 trailer 元素', () => {
-    // 去掉尾部（以及尾部前多出来的空行），让报告正好停在链接行
-    const noTrailer = NEW_STYLE_REPORT.split('\n⏰ 更新时间')[0].trimEnd();
-    const card = messageToFeishuCard(noTrailer);
-    expect(card).not.toBeNull();
-    if (!card) return;
-
-    // 1 个币种 = 1 markdown + 1 actions + 1 立即查询 = 3（没有 trailer）
-    expect(card.card.elements.map((e) => e.tag)).toEqual(['markdown', 'action', 'action']);
-    const hasTrailer = card.card.elements.some(
-      e => e.tag === 'markdown' && e.content.includes('⏰ 更新时间')
-    );
-    expect(hasTrailer).toBe(false);
-  });
-
   it('标题为空时降级为默认标题「加密货币价格报告」', () => {
     const noTitle = `📊 \n\n🔹 *X* X\n   🔗 [Gate](https://www.gate.com/zh/trade/X_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/X) | [CoinGecko](https://www.coingecko.com/zh/x)\n\n⏰ 更新时间: 2026/9/17 00:00:00`;
-    const card = messageToFeishuCard(noTitle);
-    expect(card).not.toBeNull();
-    expect(card?.card.header.title.content).toBe('📊 加密货币价格报告');
+    expect(messageToFeishuCard(noTitle)?.card.header.title.content).toBe('📊 加密货币价格报告');
   });
 });

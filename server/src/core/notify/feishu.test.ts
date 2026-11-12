@@ -130,31 +130,57 @@ describe('sendToFeishu webhook 卡片化', () => {
     mockHttpPost.mockResolvedValue({ data: { code: 0 } });
   });
 
-  it('完整报告 → webhook 发 interactive 卡片，链接渲染为可点击的 url 按钮', async () => {
+  it('完整报告 → webhook 发 2.0 interactive 卡片，链接是 Markdown 行内链接', async () => {
     const result = await sendToFeishu(SAMPLE_REPORT);
     expect(result.ok).toBe(true);
 
-    const body = mockHttpPost.mock.calls[0][1] as {
-      msg_type: string;
-      card?: { elements: Array<{ tag: string; actions?: Array<{ text: { content: string }; url?: string }> }> };
-    };
+    const body = mockHttpPost.mock.calls[0][1] as { msg_type: string; card?: Record<string, unknown> };
     expect(body.msg_type).toBe('interactive');
-    expect(body.card).toBeTruthy();
-
-    const actions = body.card!.elements.find(e => e.tag === 'action');
-    expect(actions?.actions?.map(a => a.text.content)).toEqual(['Gate', 'Binance', 'CoinGlass', 'CoinGecko']);
-    expect(actions?.actions?.every(a => a.url?.startsWith('http'))).toBe(true);
+    expect(body.card?.['schema']).toBe('2.0');
+    const raw = JSON.stringify(body.card);
+    expect(raw).toContain('[Gate](https://www.gate.com/zh/trade/BTC_USDT)');
+    expect(raw).toContain('[CoinGecko](');
+    // 纯展示：不包含按钮组件
+    expect(raw).not.toContain('"tag":"button"');
   });
 
-  it('webhook 卡片不含「立即查询」回调按钮（webhook 无事件订阅通道）', async () => {
+  it('大报告 → 拆成多张卡片逐张发送（避免超过飞书 30KB 降级成纯文本）', async () => {
+    const coinBlock = (i: number) => [
+      `🔹 *币种${i}* C${i}`,
+      '   ──── 📈 趋势 ────',
+      '   涨跌：-11.45%(7d) · -20.22%(30d) · +187.37%(90d)',
+      '         +106.52%(180d) · +84.27%(1y)',
+      '   均线：7 < 186(¥1,238.76) · 30 < 193(¥1,285.38)',
+      '         90 > 144(¥959.04) · 180 > 105(¥699.30)',
+      '         365 > 89.57(¥596.54)',
+      '   ──── 🧭 周期研判 ────',
+      '   日线：大幅走弱 -11.45%，连阴2根，跌破MA7 9.93%，跌破MA30 13.40%，均线纠缠，日均振幅8.0%',
+      '   周线：大幅走弱 -13.02%，跌破MA5 11.62%，站上MA20 34.92%，距13周高点回撤55.18%',
+      '   月线：强势上涨 +173.78%，跌破MA3 23.41%，站上MA12 59.99%，距12月高点回撤55.18%',
+      '   年线：强势上涨 +140.66%，连阴2年，站上3年年均线 46.28%，距3年高点回撤55.18%',
+      `   🔗 [Gate](https://www.gate.com/zh/trade/C${i}_USDT) | [CoinGlass](https://www.coinglass.com/zh/currencies/C${i}) | [CoinGecko](https://www.coingecko.com/zh/x)`,
+    ].join('\n');
+    const big = `📊 *加密货币价格报告 (含技术指标) from local*
+
+${Array.from({ length: 30 }, (_, i) => coinBlock(i + 1)).join('\n\n')}
+
+⏰ 更新时间: 2026/11/12 10:00:00
+⚠️ MA（移动平均线）仅供参考`;
+
+    const result = await sendToFeishu(big);
+    expect(result.ok).toBe(true);
+    expect(mockHttpPost.mock.calls.length).toBeGreaterThan(1);
+    for (const call of mockHttpPost.mock.calls) {
+      expect((call[1] as { msg_type: string }).msg_type).toBe('interactive');
+    }
+  });
+
+  it('纯展示卡片不含「立即查询」回调按钮', async () => {
     await sendToFeishu(SAMPLE_REPORT);
-    const body = mockHttpPost.mock.calls[0][1] as {
-      card?: { elements: Array<{ tag: string; actions?: Array<{ text: { content: string }; value?: unknown }> }> };
-    };
-    const hasQueryBtn = body.card?.elements.some(
-      e => e.tag === 'action' && e.actions?.some(a => a.text.content === '🔄 立即查询')
-    );
-    expect(hasQueryBtn).toBe(false);
+    const body = mockHttpPost.mock.calls[0][1] as { card?: Record<string, unknown> };
+    const raw = JSON.stringify(body.card);
+    expect(raw).not.toContain('立即查询');
+    expect(raw).not.toContain('"tag":"button"');
   });
 
   it('简单消息（价格预警等）→ webhook 仍走 text 通道', async () => {
@@ -211,20 +237,14 @@ describe('sendToFeishu Bot 通道 payload', () => {
     mockSendViaBot.mockResolvedValue({ ok: true });
   });
 
-  it('完整报告走 Bot → 发送 interactive 卡片（含「立即查询」回调按钮）', async () => {
+  it('完整报告走 Bot → 发送 2.0 interactive 卡片（纯展示，无回调按钮）', async () => {
     const result = await sendToFeishu(SAMPLE_REPORT);
     expect(result.ok).toBe(true);
 
-    const payload = mockSendViaBot.mock.calls[0]?.[1] as {
-      msg_type: string;
-      card?: { elements: Array<{ tag: string; actions?: Array<{ text: { content: string } }> }> };
-    };
+    const payload = mockSendViaBot.mock.calls[0]?.[1] as { msg_type: string; card?: Record<string, unknown> };
     expect(payload.msg_type).toBe('interactive');
-    expect(payload.card).toBeTruthy();
-    const hasQueryBtn = payload.card?.elements.some(
-      e => e.tag === 'action' && e.actions?.some(a => a.text.content === '🔄 立即查询')
-    );
-    expect(hasQueryBtn).toBe(true);
+    expect(payload.card?.['schema']).toBe('2.0');
+    expect(JSON.stringify(payload.card)).not.toContain('立即查询');
   });
 
   it('简单消息走 Bot → 发送 text 类型并做纯文本规范化', async () => {
@@ -300,7 +320,7 @@ describe('sendToFeishu webhook 错误处理', () => {
       const result = await sendToFeishu('__test_message');
       expect(result.ok).toBe(true);
       const out = stdoutSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
-      expect(out).toContain('webhook body=');
+      expect(out).toContain('webhook body (1/1)=');
       expect(out).toContain('testmessage');
     } finally {
       stdoutSpy.mockRestore();
@@ -315,8 +335,8 @@ describe('sendToFeishu webhook 错误处理', () => {
       mockHttpPost.mockResolvedValue({ data: { code: 0 } });
       await sendToFeishu('__test_message');
       const out = stdoutSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
-      expect(out).toContain('webhook send msg_type=text');
-      expect(out).not.toContain('webhook body=');
+      expect(out).toContain('webhook send (1/1) msg_type=text');
+      expect(out).not.toContain('webhook body');
     } finally {
       stdoutSpy.mockRestore();
     }
